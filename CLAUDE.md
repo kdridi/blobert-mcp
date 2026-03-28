@@ -198,3 +198,24 @@ backlog → ongoing → completed
 - Python 3.10+
 - Use `uv` for package management
 - Follow existing documentation style (see `docs/` for reference)
+
+---
+
+## Architecture
+
+See `docs/architecture.md` for the full architecture documentation.
+
+### Key Rules (enforced on every code change)
+
+1. **Domain isolation**: `domain/` imports nothing from the project. Pure functions, stdlib + dataclasses only.
+2. **Dependency direction**: `tools/` -> `domain/` -> nothing. Never the reverse.
+3. **Thin tools**: Tool handlers validate, read bytes, delegate to domain, format output. No business logic in tools.
+4. **Error convention**: Tools return `{"error": "CODE", "message": "..."}` on failure. Domain functions raise exceptions.
+
+### Testing
+
+See `docs/testing-strategy.md` for the full testing strategy.
+
+- **Domain modules use TDD**: Write tests first, then implementation. This is not optional.
+- **Test data is synthetic**: Never use copyrighted ROMs in tests. Use byte literals.
+- **Mirror layout**: `tests/domain/` tests `src/blobert_mcp/domain/`, `tests/tools/` tests `src/blobert_mcp/tools/`.

@@ -1,0 +1,2 @@
+- [Project ticket sizing calibration](project_ticket_sizing.md) — typical ticket scope: small=4 files/4 criteria, medium=7-13 files/criteria, large=complex engine work
+- [Project state as of analysis start](project_state.md) — zero source code as of 2026-03-28; BLO-006 is the only completed ticket
