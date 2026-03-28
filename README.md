@@ -38,11 +38,11 @@ The AI **sees the screen**, **reads the memory**, **controls the inputs**, and *
 ## How it works
 
 ```
-┌─────────┐              ┌──────────┐     MCP      ┌──────────┐   PyBoy API   ┌─────────┐
-│  Human  │◄────────────►│ Claude / │◄────────────►│ blobert  │◄────────────►│  PyBoy  │
-│ (plays, │ conversation │ any LLM  │    tools     │   -mcp   │              │emulator │
+┌──────────┐              ┌──────────┐     MCP      ┌──────────┐   PyBoy API  ┌─────────┐
+│  Human   │◄────────────►│ Claude / │◄────────────►│ blobert  │◄────────────►│  PyBoy  │
+│ (plays,  │ conversation │ any LLM  │    tools     │   -mcp   │              │emulator │
 │ observes)│              └──────────┘              │  + KB    │              └─────────┘
-└─────────┘                                        └──────────┘
+└──────────┘                                        └──────────┘
 ```
 
 - **The human** plays the game, describes what they see, and guides the investigation
