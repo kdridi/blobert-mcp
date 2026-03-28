@@ -79,6 +79,7 @@ backlog → ongoing → completed
   - Add log entry: `- <date>: Ticket completed.`
   - Update frontmatter: `status: completed`, `updated: <today>`
   - Move file to `tickets/completed/BLO-XXX.md`
+  - Check if `.claude/agent-memory/ticket-analyzer/project_state.md` is modified — if so, stage it in the same completion commit (not a separate one)
 
 **5. Reject** — If the ticket is cancelled or invalid:
   - Document the reason in the Log section
@@ -193,6 +194,7 @@ backlog → ongoing → completed
 | Root config files | Only modified under an active ticket |
 | `CLAUDE.md` | Only modified under explicit user instruction |
 | `README.md` | Updated when significant milestones are reached |
+| `.claude/agent-memory/ticket-analyzer/project_state.md` | Stage with the ticket completion commit if modified — never as a standalone commit |
 
 ### Code
 - Python 3.10+
