@@ -1,4 +1,4 @@
-"""Integration tests for tools/session.py and tools/static.py.
+"""Integration tests for tools/session.py, tools/static.py, and tools/memory.py.
 
 Uses FakeEmulatorSession (no PyBoy) for error-path tests and a
 synthetic minimal ROM fixture for happy-path tests.
@@ -12,6 +12,7 @@ from typing import Any
 import pytest
 from mcp.server.fastmcp import FastMCP
 
+from blobert_mcp.tools.memory import register_memory_tools
 from blobert_mcp.tools.session import register_session_tools
 from blobert_mcp.tools.static import register_static_tools
 
@@ -66,10 +67,11 @@ class FakeRegisterFile:
 
 
 class FakeMemory:
-    """Provides pyboy.memory[...] interface backed by a bytes object."""
+    """Provides pyboy.memory[...] interface backed by a full 64KB address space."""
 
     def __init__(self, data: bytes) -> None:
-        self._data = data
+        self._data = bytearray(0x10000)
+        self._data[:len(data)] = data
 
     def __getitem__(self, key: Any) -> Any:
         if isinstance(key, slice):
@@ -137,6 +139,7 @@ def _make_mcp_with_session(session: FakeEmulatorSession) -> FastMCP:
     mcp = FastMCP("test")
     register_session_tools(mcp, session)
     register_static_tools(mcp, session)
+    register_memory_tools(mcp, session)
     return mcp
 
 
@@ -449,3 +452,202 @@ class TestGetVectorTable:
             for p in parts:
                 assert len(p) == 2
                 int(p, 16)  # must be valid hex
+
+
+# ---------------------------------------------------------------------------
+# gb_read_memory
+# ---------------------------------------------------------------------------
+
+class TestGbReadMemory:
+    def test_length_zero(self, session_with_rom: FakeEmulatorSession) -> None:
+        mcp = _make_mcp_with_session(session_with_rom)
+        tool = _get_tool(mcp, "gb_read_memory")
+        result = tool(address=0x0100, length=0)
+        assert result["error"] == "INVALID_PARAMETER"
+
+    def test_length_too_large(self, session_with_rom: FakeEmulatorSession) -> None:
+        mcp = _make_mcp_with_session(session_with_rom)
+        tool = _get_tool(mcp, "gb_read_memory")
+        result = tool(address=0x0100, length=5000)
+        assert result["error"] == "INVALID_PARAMETER"
+
+    def test_no_rom(self, session_no_rom: FakeEmulatorSession) -> None:
+        mcp = _make_mcp_with_session(session_no_rom)
+        tool = _get_tool(mcp, "gb_read_memory")
+        result = tool(address=0x0100, length=16)
+        assert result["error"] == "NO_ROM_LOADED"
+
+    def test_valid_read_keys(self, session_with_rom: FakeEmulatorSession) -> None:
+        mcp = _make_mcp_with_session(session_with_rom)
+        tool = _get_tool(mcp, "gb_read_memory")
+        result = tool(address=0x0100, length=16)
+        for key in ("address", "length", "data"):
+            assert key in result, f"Missing key: {key}"
+
+    def test_valid_read_values(self, session_with_rom: FakeEmulatorSession) -> None:
+        mcp = _make_mcp_with_session(session_with_rom)
+        tool = _get_tool(mcp, "gb_read_memory")
+        result = tool(address=0x0100, length=16)
+        assert result["address"] == 0x0100
+        assert result["length"] == 16
+        assert isinstance(result["data"], str)
+        assert "00000100" in result["data"]
+
+    def test_default_length(self, session_with_rom: FakeEmulatorSession) -> None:
+        mcp = _make_mcp_with_session(session_with_rom)
+        tool = _get_tool(mcp, "gb_read_memory")
+        result = tool(address=0x0000)
+        assert result["length"] == 256
+
+    def test_length_boundary_min(self, session_with_rom: FakeEmulatorSession) -> None:
+        mcp = _make_mcp_with_session(session_with_rom)
+        tool = _get_tool(mcp, "gb_read_memory")
+        result = tool(address=0x0100, length=1)
+        assert result["length"] == 1
+
+    def test_length_boundary_max(self, session_with_rom: FakeEmulatorSession) -> None:
+        mcp = _make_mcp_with_session(session_with_rom)
+        tool = _get_tool(mcp, "gb_read_memory")
+        result = tool(address=0x0000, length=4096)
+        assert result["length"] == 4096
+
+
+# ---------------------------------------------------------------------------
+# gb_read_banked
+# ---------------------------------------------------------------------------
+
+class TestGbReadBanked:
+    def test_length_zero(self, session_with_rom: FakeEmulatorSession) -> None:
+        mcp = _make_mcp_with_session(session_with_rom)
+        tool = _get_tool(mcp, "gb_read_banked")
+        result = tool(bank=1, address=0x4000, length=0)
+        assert result["error"] == "INVALID_PARAMETER"
+
+    def test_length_too_large(self, session_with_rom: FakeEmulatorSession) -> None:
+        mcp = _make_mcp_with_session(session_with_rom)
+        tool = _get_tool(mcp, "gb_read_banked")
+        result = tool(bank=1, address=0x4000, length=5000)
+        assert result["error"] == "INVALID_PARAMETER"
+
+    def test_no_rom(self, session_no_rom: FakeEmulatorSession) -> None:
+        mcp = _make_mcp_with_session(session_no_rom)
+        tool = _get_tool(mcp, "gb_read_banked")
+        result = tool(bank=1, address=0x4000, length=16)
+        assert result["error"] == "NO_ROM_LOADED"
+
+    def test_valid_read_keys(self, session_with_rom: FakeEmulatorSession) -> None:
+        mcp = _make_mcp_with_session(session_with_rom)
+        tool = _get_tool(mcp, "gb_read_banked")
+        result = tool(bank=0, address=0x0000, length=16)
+        for key in ("bank", "address", "length", "data"):
+            assert key in result, f"Missing key: {key}"
+
+    def test_valid_read_values(self, session_with_rom: FakeEmulatorSession) -> None:
+        mcp = _make_mcp_with_session(session_with_rom)
+        tool = _get_tool(mcp, "gb_read_banked")
+        result = tool(bank=0, address=0x0100, length=16)
+        assert result["bank"] == 0
+        assert result["address"] == 0x0100
+        assert result["length"] == 16
+        assert isinstance(result["data"], str)
+
+    def test_default_length(self, session_with_rom: FakeEmulatorSession) -> None:
+        mcp = _make_mcp_with_session(session_with_rom)
+        tool = _get_tool(mcp, "gb_read_banked")
+        result = tool(bank=0, address=0x0000)
+        assert result["length"] == 256
+
+
+# ---------------------------------------------------------------------------
+# gb_get_bank_info
+# ---------------------------------------------------------------------------
+
+class TestGbGetBankInfo:
+    def test_no_rom(self, session_no_rom: FakeEmulatorSession) -> None:
+        mcp = _make_mcp_with_session(session_no_rom)
+        tool = _get_tool(mcp, "gb_get_bank_info")
+        result = tool()
+        assert result["error"] == "NO_ROM_LOADED"
+
+    def test_keys(self, session_with_rom: FakeEmulatorSession) -> None:
+        mcp = _make_mcp_with_session(session_with_rom)
+        tool = _get_tool(mcp, "gb_get_bank_info")
+        result = tool()
+        for key in ("mbc_type", "mbc_name", "total_banks", "current_rom_bank",
+                    "has_ram", "has_battery"):
+            assert key in result, f"Missing key: {key}"
+
+    def test_total_banks(self, session_with_rom: FakeEmulatorSession) -> None:
+        # ROM ONLY with size byte 0x00 → 2 << 0 = 2 banks
+        mcp = _make_mcp_with_session(session_with_rom)
+        tool = _get_tool(mcp, "gb_get_bank_info")
+        result = tool()
+        assert result["total_banks"] == 2
+
+    def test_mbc_type_none_for_rom_only(
+        self, session_with_rom: FakeEmulatorSession
+    ) -> None:
+        mcp = _make_mcp_with_session(session_with_rom)
+        tool = _get_tool(mcp, "gb_get_bank_info")
+        result = tool()
+        assert result["mbc_type"] is None
+
+    def test_has_no_ram_for_rom_only(
+        self, session_with_rom: FakeEmulatorSession
+    ) -> None:
+        mcp = _make_mcp_with_session(session_with_rom)
+        tool = _get_tool(mcp, "gb_get_bank_info")
+        result = tool()
+        assert result["has_ram"] is False
+
+    def test_current_rom_bank(self, session_with_rom: FakeEmulatorSession) -> None:
+        mcp = _make_mcp_with_session(session_with_rom)
+        tool = _get_tool(mcp, "gb_get_bank_info")
+        result = tool()
+        assert result["current_rom_bank"] == 1
+
+
+# ---------------------------------------------------------------------------
+# gb_get_interrupt_status
+# ---------------------------------------------------------------------------
+
+class TestGbGetInterruptStatus:
+    def test_no_rom(self, session_no_rom: FakeEmulatorSession) -> None:
+        mcp = _make_mcp_with_session(session_no_rom)
+        tool = _get_tool(mcp, "gb_get_interrupt_status")
+        result = tool()
+        assert result["error"] == "NO_ROM_LOADED"
+
+    def test_keys(self, session_with_rom: FakeEmulatorSession) -> None:
+        mcp = _make_mcp_with_session(session_with_rom)
+        tool = _get_tool(mcp, "gb_get_interrupt_status")
+        result = tool()
+        for key in ("ie_raw", "if_raw", "interrupts"):
+            assert key in result, f"Missing key: {key}"
+
+    def test_all_zero_flags(self, session_with_rom: FakeEmulatorSession) -> None:
+        # Test ROM has 0x00 at 0xFFFF (IE) and 0xFF0F (IF)
+        mcp = _make_mcp_with_session(session_with_rom)
+        tool = _get_tool(mcp, "gb_get_interrupt_status")
+        result = tool()
+        assert result["ie_raw"] == 0x00
+        assert result["if_raw"] == 0x00
+        for flag in result["interrupts"].values():
+            assert flag["enabled"] is False
+            assert flag["requested"] is False
+
+    def test_interrupt_names(self, session_with_rom: FakeEmulatorSession) -> None:
+        mcp = _make_mcp_with_session(session_with_rom)
+        tool = _get_tool(mcp, "gb_get_interrupt_status")
+        result = tool()
+        assert set(result["interrupts"].keys()) == {
+            "vblank", "stat", "timer", "serial", "joypad"
+        }
+
+    def test_flag_structure(self, session_with_rom: FakeEmulatorSession) -> None:
+        mcp = _make_mcp_with_session(session_with_rom)
+        tool = _get_tool(mcp, "gb_get_interrupt_status")
+        result = tool()
+        for name, flag in result["interrupts"].items():
+            assert "enabled" in flag, f"Missing 'enabled' in {name}"
+            assert "requested" in flag, f"Missing 'requested' in {name}"
