@@ -3,6 +3,8 @@
 from mcp.server.fastmcp import FastMCP
 
 from blobert_mcp.emulator import EmulatorSession
+from blobert_mcp.tools.session import register_session_tools
+from blobert_mcp.tools.static import register_static_tools
 
 mcp = FastMCP("blobert-mcp")
 session = EmulatorSession()
@@ -12,6 +14,10 @@ session = EmulatorSession()
 def ping() -> dict:
     """Health check. Returns server status and whether a ROM is loaded."""
     return {"status": "ok", "rom_loaded": session.rom_loaded}
+
+
+register_session_tools(mcp, session)
+register_static_tools(mcp, session)
 
 
 def main() -> None:
