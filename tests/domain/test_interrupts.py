@@ -46,19 +46,24 @@ def test_parse_mixed_flags():
     # IF=0x0A -> vblank(0), stat(1), timer(0), serial(1), joypad(0)
     result = parse_interrupt_flags(0x15, 0x0A)
     assert result["interrupts"]["vblank"] == {
-        "enabled": True, "requested": False,
+        "enabled": True,
+        "requested": False,
     }
     assert result["interrupts"]["stat"] == {
-        "enabled": False, "requested": True,
+        "enabled": False,
+        "requested": True,
     }
     assert result["interrupts"]["timer"] == {
-        "enabled": True, "requested": False,
+        "enabled": True,
+        "requested": False,
     }
     assert result["interrupts"]["serial"] == {
-        "enabled": False, "requested": True,
+        "enabled": False,
+        "requested": True,
     }
     assert result["interrupts"]["joypad"] == {
-        "enabled": True, "requested": False,
+        "enabled": True,
+        "requested": False,
     }
 
 

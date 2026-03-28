@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from blobert_mcp.domain.bank_info import calculate_bank_count, detect_mbc_type
 
-
 # --- detect_mbc_type ---
 
 

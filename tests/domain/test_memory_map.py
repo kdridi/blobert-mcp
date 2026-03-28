@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from blobert_mcp.domain.memory_map import REGIONS, MemoryRegion, get_regions
+from blobert_mcp.domain.memory_map import REGIONS, get_regions
 
 
 def test_regions_count():

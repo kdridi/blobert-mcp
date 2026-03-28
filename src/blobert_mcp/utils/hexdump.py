@@ -20,9 +20,7 @@ def hexdump(data: bytes, start_offset: int = 0) -> str:
         hex_part = " ".join(f"{b:02X}" for b in chunk)
         hex_part = hex_part.ljust(47)
 
-        ascii_part = "".join(
-            chr(b) if 0x20 <= b <= 0x7E else "." for b in chunk
-        )
+        ascii_part = "".join(chr(b) if 0x20 <= b <= 0x7E else "." for b in chunk)
 
         lines.append(f"{offset:08X}  {hex_part}  |{ascii_part}|")
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from blobert_mcp.domain.vectors import VECTORS, Vector, get_vectors
+from blobert_mcp.domain.vectors import VECTORS, get_vectors
 
 
 def test_vectors_count():
@@ -14,7 +14,14 @@ def test_vectors_count():
 def test_rst_vector_addresses():
     rst = [v for v in VECTORS if v.type == "rst"]
     assert [v.address for v in rst] == [
-        0x00, 0x08, 0x10, 0x18, 0x20, 0x28, 0x30, 0x38,
+        0x00,
+        0x08,
+        0x10,
+        0x18,
+        0x20,
+        0x28,
+        0x30,
+        0x38,
     ]
 
 
@@ -31,7 +38,11 @@ def test_interrupt_vector_addresses():
 def test_interrupt_vector_labels():
     interrupts = [v for v in VECTORS if v.type == "interrupt"]
     assert [v.label for v in interrupts] == [
-        "VBlank", "STAT", "Timer", "Serial", "Joypad",
+        "VBlank",
+        "STAT",
+        "Timer",
+        "Serial",
+        "Joypad",
     ]
 
 
