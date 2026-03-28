@@ -1,0 +1,200 @@
+# blobert-mcp — Project Instructions
+
+An MCP server for LLM-assisted Game Boy ROM decompilation. See [README.md](README.md) for project overview.
+
+---
+
+## Golden Rule
+
+**No code changes without an active ticket.**
+
+- A **code change** is any modification to files outside `tickets/` and `docs/`.
+- An **active ticket** is a ticket file present in `tickets/ongoing/` with `status: ongoing`.
+- If no active ticket exists, **refuse the change** and offer to create a ticket first.
+- Maximum **one ticket in `tickets/ongoing/` at a time** — this enforces focus and prevents scope creep.
+- Even one-line fixes require a ticket. The discipline is the point.
+
+---
+
+## Ticket System
+
+### Directory Layout
+
+```
+tickets/
+├── TEMPLATE.md        # Canonical ticket template — copy this for new tickets
+├── backlog/           # Tickets not yet started
+├── ongoing/           # The one active ticket (max 1)
+├── completed/         # Successfully finished tickets
+└── rejected/          # Cancelled or invalid tickets
+```
+
+### Ticket Format
+
+All tickets follow the template in `tickets/TEMPLATE.md`. Key fields:
+
+| Field | Description |
+|---|---|
+| `id` | `BLO-XXX` — zero-padded 3-digit number |
+| `title` | Concise description |
+| `status` | `backlog` \| `ongoing` \| `completed` \| `rejected` |
+| `priority` | `P0` \| `P1` \| `P2` (matches `docs/mcp-spec.md` convention) |
+| `type` | `feature` \| `bugfix` \| `refactor` \| `docs` \| `research` \| `infrastructure` |
+| `dependencies` | List of ticket IDs that must be completed first |
+| `assignee` | `human` \| `ai` \| `unassigned` |
+| `estimated_complexity` | `small` \| `medium` \| `large` |
+
+### ID Assignment
+
+To assign a new ticket ID:
+1. Scan all files across `tickets/backlog/`, `tickets/ongoing/`, `tickets/completed/`, `tickets/rejected/`
+2. Find the highest `BLO-XXX` number
+3. Increment by 1, zero-pad to 3 digits
+
+### Ticket Lifecycle
+
+```
+backlog → ongoing → completed
+                  → rejected
+```
+
+**1. Create** — Generate ticket from template, save to `tickets/backlog/BLO-XXX.md`
+
+**2. Activate** — Before moving to `ongoing/`:
+  - Verify `tickets/ongoing/` is empty (no other active ticket)
+  - Verify all dependencies are in `tickets/completed/`
+  - Move file to `tickets/ongoing/BLO-XXX.md`
+  - Update frontmatter: `status: ongoing`, `updated: <today>`
+  - Add log entry: `- <date>: Ticket activated.`
+
+**3. Work** — While the ticket is active:
+  - All code changes must fall within the ticket's scope
+  - Append significant events to the Log section
+  - Track every created/modified file in the Files Modified section
+  - Every commit message must start with the ticket ID: `BLO-XXX: <description>`
+
+**4. Complete** — When all acceptance criteria are met:
+  - Check off all acceptance criteria checkboxes
+  - Ensure Files Modified is complete
+  - Add log entry: `- <date>: Ticket completed.`
+  - Update frontmatter: `status: completed`, `updated: <today>`
+  - Move file to `tickets/completed/BLO-XXX.md`
+
+**5. Reject** — If the ticket is cancelled or invalid:
+  - Document the reason in the Log section
+  - Update frontmatter: `status: rejected`, `updated: <today>`
+  - Move file to `tickets/rejected/BLO-XXX.md`
+  - Check if other tickets depend on this one and flag them for review
+
+---
+
+## Sub-Agents
+
+### Ticketing AI
+
+**Purpose:** Analyze project state and generate well-formed tickets.
+
+**Trigger:** User says "create tickets", "what tickets do we need", "analyze the backlog", or similar.
+
+**Behavior:**
+1. Read `docs/mcp-spec.md`, `docs/journal.md`, and all existing tickets
+2. Identify gaps between the spec and current implementation
+3. Generate tickets using `tickets/TEMPLATE.md` format
+4. Place them in `tickets/backlog/`
+5. Assign priorities consistent with `docs/mcp-spec.md` P0/P1/P2 classification
+6. Group related tools into logical tickets (don't create one ticket per tool)
+
+**Constraints:** Only creates files in `tickets/backlog/`. Never modifies code.
+
+### Project Organization AI
+
+**Purpose:** Maintain project structure, move tickets, enforce conventions.
+
+**Trigger:** User says "organize tickets", "move ticket BLO-XXX to completed", "clean up", or similar.
+
+**Behavior:**
+1. Validate ticket format (all frontmatter fields present, ID consistency, file in correct directory for its status)
+2. Move tickets between directories as requested
+3. Update the `status` and `updated` fields in frontmatter when moving
+4. Verify no orphaned dependencies (tickets depending on rejected tickets)
+
+**Constraints:** Only modifies files in `tickets/`. Never modifies code.
+
+### Project Management AI
+
+**Purpose:** Strategic oversight — roadmap analysis, priority recommendations, progress tracking.
+
+**Trigger:** User says "project status", "what should we work on next", "roadmap", "sprint planning", or similar.
+
+**Behavior:**
+1. Read all tickets across all status directories
+2. Assess progress: completed count, ongoing work, backlog size, P0 coverage
+3. Identify blockers: unresolved dependencies, missing prerequisites
+4. Recommend the next ticket to work on based on priority + dependency ordering
+5. Generate summary reports
+6. May suggest new tickets (delegates creation to Ticketing AI)
+
+**Constraints:** Read-only analysis. Does not modify any files directly.
+
+---
+
+## Workflow Examples
+
+### Working on a Ticket
+
+```
+1. User: "Let's work on BLO-003"
+2. AI reads tickets/backlog/BLO-003.md
+3. AI verifies tickets/ongoing/ is empty
+4. AI verifies BLO-003 dependencies are all in tickets/completed/
+5. AI moves BLO-003.md to tickets/ongoing/ and updates status → ongoing
+6. AI confirms the objective and acceptance criteria with the user
+7. AI implements the work
+8. AI updates BLO-003.md: checks criteria, fills Files Modified, adds Log entries
+9. AI moves BLO-003.md to tickets/completed/ and updates status → completed
+```
+
+### Creating Tickets from the Spec
+
+```
+1. User: "Create tickets for the P0 tools"
+2. AI (Ticketing role) reads docs/mcp-spec.md
+3. AI identifies all P0 tools and groups them logically
+4. AI creates BLO-001.md through BLO-00N.md in tickets/backlog/
+5. AI reports what was created
+```
+
+### Quick Fix Request
+
+```
+1. User: "Just fix this import error"
+2. AI: "I need a ticket for this. Let me create one."
+3. AI creates a minimal ticket in tickets/backlog/
+4. AI activates it (moves to ongoing/)
+5. AI makes the fix
+6. AI completes the ticket (moves to completed/)
+```
+
+---
+
+## Conventions
+
+### Commits
+- Every commit message starts with the ticket ID: `BLO-XXX: <short description>`
+- One ticket may span multiple commits
+
+### File Scope Rules
+| Path | Rule |
+|---|---|
+| `tickets/` | Managed by the ticketing system |
+| `docs/` | Can be updated as part of any ticket |
+| `src/` | Only modified under an active ticket |
+| `tests/` | Only modified under an active ticket |
+| Root config files | Only modified under an active ticket |
+| `CLAUDE.md` | Only modified under explicit user instruction |
+| `README.md` | Updated when significant milestones are reached |
+
+### Code
+- Python 3.10+
+- Use `uv` for package management
+- Follow existing documentation style (see `docs/` for reference)
