@@ -1,7 +1,7 @@
 ---
 id: BLO-XXX
 title: "<concise title>"
-status: backlog
+status: backlog | planned
 priority: P0 | P1 | P2
 type: feature | bugfix | refactor | docs | research | infrastructure
 created: YYYY-MM-DD HH:MM:SS

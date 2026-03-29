@@ -32,6 +32,14 @@ for completed_file in $staged_completed; do
         fi
     fi
 
+    # Check for orphaned file in planned/
+    planned_file="${TICKETS_DIR}/planned/${ticket_id}.md"
+    if [ -f "$planned_file" ]; then
+        if ! git diff --cached --name-only 2>/dev/null | grep -q "^${planned_file}$"; then
+            warnings="${warnings}\n- ${planned_file} still exists on disk but is not staged for deletion. Use: git rm ${planned_file}"
+        fi
+    fi
+
     # Check for orphaned file in ongoing/
     ongoing_file="${TICKETS_DIR}/ongoing/${ticket_id}.md"
     if [ -f "$ongoing_file" ]; then
@@ -61,15 +69,23 @@ fi
 for f in ${TICKETS_DIR}/backlog/BLO-*.md; do
     [ -f "$f" ] || continue
     status=$(grep '^status:' "$f" 2>/dev/null | head -1 | awk '{print $2}')
-    if [ "$status" = "ongoing" ] || [ "$status" = "completed" ]; then
+    if [ "$status" != "backlog" ]; then
         warnings="${warnings}\n- $(basename "$f") has status '${status}' but is in backlog/"
+    fi
+done
+
+for f in ${TICKETS_DIR}/planned/BLO-*.md; do
+    [ -f "$f" ] || continue
+    status=$(grep '^status:' "$f" 2>/dev/null | head -1 | awk '{print $2}')
+    if [ "$status" != "planned" ]; then
+        warnings="${warnings}\n- $(basename "$f") has status '${status}' but is in planned/"
     fi
 done
 
 for f in ${TICKETS_DIR}/ongoing/BLO-*.md; do
     [ -f "$f" ] || continue
     status=$(grep '^status:' "$f" 2>/dev/null | head -1 | awk '{print $2}')
-    if [ "$status" = "backlog" ] || [ "$status" = "completed" ]; then
+    if [ "$status" != "ongoing" ]; then
         warnings="${warnings}\n- $(basename "$f") has status '${status}' but is in ongoing/"
     fi
 done

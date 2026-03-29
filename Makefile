@@ -33,6 +33,10 @@ verify-ticket: ## Verify ticket lifecycle integrity
 			echo "ERROR: $$id exists in both backlog/ and completed/"; \
 			exit 1; \
 		fi; \
+		if [ -f "tickets/planned/$$id.md" ]; then \
+			echo "ERROR: $$id exists in both planned/ and completed/"; \
+			exit 1; \
+		fi; \
 		if [ -f "tickets/ongoing/$$id.md" ]; then \
 			echo "ERROR: $$id exists in both ongoing/ and completed/"; \
 			exit 1; \

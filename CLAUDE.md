@@ -23,7 +23,8 @@ An MCP server for LLM-assisted Game Boy ROM decompilation. See [README.md](READM
 ```
 tickets/
 ├── TEMPLATE.md        # Canonical ticket template — copy this for new tickets
-├── backlog/           # Tickets not yet started
+├── backlog/           # Ticket ideas — rough drafts, not yet refined
+├── planned/           # Refined tickets — fully specified, ready to activate
 ├── ongoing/           # The one active ticket (max 1)
 ├── completed/         # Successfully finished tickets
 └── rejected/          # Cancelled or invalid tickets
@@ -37,7 +38,7 @@ All tickets follow the template in `tickets/TEMPLATE.md`. Key fields:
 |---|---|
 | `id` | `BLO-XXX` — zero-padded 3-digit number |
 | `title` | Concise description |
-| `status` | `backlog` \| `ongoing` \| `completed` \| `rejected` |
+| `status` | `backlog` \| `planned` \| `ongoing` \| `completed` \| `rejected` |
 | `priority` | `P0` \| `P1` \| `P2` (matches `docs/mcp-spec.md` convention) |
 | `type` | `feature` \| `bugfix` \| `refactor` \| `docs` \| `research` \| `infrastructure` |
 | `dependencies` | List of ticket IDs that must be completed first |
@@ -48,33 +49,39 @@ All tickets follow the template in `tickets/TEMPLATE.md`. Key fields:
 ### ID Assignment
 
 To assign a new ticket ID:
-1. Scan all files across `tickets/backlog/`, `tickets/ongoing/`, `tickets/completed/`, `tickets/rejected/`
+1. Scan all files across `tickets/backlog/`, `tickets/planned/`, `tickets/ongoing/`, `tickets/completed/`, `tickets/rejected/`
 2. Find the highest `BLO-XXX` number
 3. Increment by 1, zero-pad to 3 digits
 
 ### Ticket Lifecycle
 
 ```
-backlog → ongoing → completed
-                  → rejected
+backlog → planned → ongoing → completed
+                             → rejected
 ```
 
-**1. Create** — Generate ticket from template, save to `tickets/backlog/BLO-XXX.md`
+**1. Create** — Generate ticket from template, save to `tickets/backlog/BLO-XXX.md`. Backlog tickets are ideas — they may have rough acceptance criteria and incomplete technical approaches.
 
-**2. Activate** — Before moving to `ongoing/`:
+**2. Plan** — When a ticket is refined and ready for implementation:
+  - Ensure all frontmatter fields are complete, acceptance criteria are concrete, and technical approach is specified
+  - Use `git mv tickets/backlog/BLO-XXX.md tickets/planned/BLO-XXX.md` — always `git mv`, never delete+recreate
+  - Update frontmatter: `status: planned`, `updated: <now>`
+  - Add log entry: `- <now>: Ticket planned.`
+
+**3. Activate** — Before moving to `ongoing/`:
   - Verify `tickets/ongoing/` is empty (no other active ticket)
   - Verify all dependencies are in `tickets/completed/`
-  - Use `git mv tickets/backlog/BLO-XXX.md tickets/ongoing/BLO-XXX.md` — always `git mv`, never delete+recreate
+  - Use `git mv tickets/planned/BLO-XXX.md tickets/ongoing/BLO-XXX.md` — always `git mv`, never delete+recreate
   - Update frontmatter: `status: ongoing`, `updated: <now>`
   - Add log entry: `- <now>: Ticket activated.`
 
-**3. Work** — While the ticket is active:
+**4. Work** — While the ticket is active:
   - All code changes must fall within the ticket's scope
   - Append significant events to the Log section
   - Track every created/modified file in the Files Modified section
   - Every commit message must start with the ticket ID: `BLO-XXX: <description>`
 
-**4. Complete** — When all acceptance criteria are met, execute these steps in order:
+**5. Complete** — When all acceptance criteria are met, execute these steps in order:
   1. Verify every `- [ ]` in Acceptance Criteria is now `- [x]`. If any remain unchecked, stop.
   2. Ensure the `## Files Modified` section lists every file created or changed.
   3. Add log entry: `- <now>: Ticket completed.`
@@ -84,10 +91,10 @@ backlog → ongoing → completed
   7. Stage all other modified files (`git add` the specific files).
   8. Commit everything in a **single commit**. The old ticket path, the new ticket path, project_state.md, and any remaining changes must all be in this one commit. Never split ticket cleanup into a separate commit.
 
-**5. Reject** — If the ticket is cancelled or invalid:
+**6. Reject** — If the ticket is cancelled or invalid:
   - Document the reason in the Log section
   - Update frontmatter: `status: rejected`, `updated: <now>`
-  - Use `git mv tickets/ongoing/BLO-XXX.md tickets/rejected/BLO-XXX.md` (or from `backlog/`) — always `git mv`, never delete+recreate
+  - Use `git mv tickets/ongoing/BLO-XXX.md tickets/rejected/BLO-XXX.md` (or from `backlog/` or `planned/`) — always `git mv`, never delete+recreate
   - Check if other tickets depend on this one and flag them for review
 
 ---
@@ -148,7 +155,7 @@ backlog → ongoing → completed
 
 ```
 1. User: "Let's work on BLO-003"
-2. AI reads tickets/backlog/BLO-003.md
+2. AI reads tickets/planned/BLO-003.md (or tickets/backlog/ if not yet planned)
 3. AI verifies tickets/ongoing/ is empty
 4. AI verifies BLO-003 dependencies are all in tickets/completed/
 5. AI moves BLO-003.md to tickets/ongoing/ and updates status → ongoing
@@ -173,7 +180,7 @@ backlog → ongoing → completed
 ```
 1. User: "Just fix this import error"
 2. AI: "I need a ticket for this. Let me create one."
-3. AI creates a minimal ticket in tickets/backlog/
+3. AI creates a minimal ticket in tickets/backlog/ (or directly in tickets/planned/ if fully specified)
 4. AI activates it (moves to ongoing/)
 5. AI makes the fix
 6. AI completes the ticket (moves to completed/)

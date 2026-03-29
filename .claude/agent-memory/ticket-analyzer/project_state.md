@@ -8,10 +8,14 @@ Completed tickets as of 2026-03-29: BLO-001, BLO-005 (SQLite KB), BLO-006, BLO-0
 
 Rejected tickets: BLO-002 (decomposed into BLO-012/013/014), BLO-004 (decomposed into BLO-020/021/022).
 
-Backlog: BLO-017.
+Planned: BLO-017 (label enrichment, ready to activate).
+
+Backlog: (empty — new tier for idea tickets).
 
 Source layout after BLO-022: `src/blobert_mcp/domain/` has registers.py, buttons.py, disasm/, rom_header, memory_map, bank_info, interrupts, vectors, kb. `src/blobert_mcp/tools/` has session.py, static.py, memory.py, kb.py, disasm.py, execution.py, input.py, savestate.py, visual.py.
 
 **Why:** Knowing the completed state avoids re-analyzing finished work and gives accurate unblocked-ticket view.
 
-**How to apply:** All P0 tools from BLO-004 are now complete. BLO-017 is the only remaining backlog item.
+BLO-025 (completed): Added `tickets/planned/` tier to lifecycle. backlog = ideas, planned = refined and ready.
+
+**How to apply:** All P0 tools from BLO-004 are now complete. BLO-017 is in planned/, ready to activate. Ticket lifecycle is now: backlog → planned → ongoing → completed/rejected.
