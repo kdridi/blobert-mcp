@@ -1,7 +1,8 @@
-"""Save state MCP tools: gb_save_state, gb_load_state."""
+"""Save state MCP tools: save, load, list, and delete."""
 
 from __future__ import annotations
 
+import time
 from io import BytesIO
 
 from blobert_mcp.domain import registers
@@ -33,6 +34,7 @@ def register_savestate_tools(mcp, session) -> None:
             "name": name,
             "frame_count": session.pyboy.frame_count,
             "pc": rf.PC,
+            "timestamp": time.time(),
         }
         return {
             "status": "ok",
@@ -71,3 +73,46 @@ def register_savestate_tools(mcp, session) -> None:
                 rf.A, rf.B, rf.C, rf.D, rf.E, rf.F, rf.H, rf.L, rf.SP, rf.PC
             ),
         }
+
+    @mcp.tool()
+    def gb_list_states() -> dict:
+        """List all saved emulator states with metadata.
+
+        Returns state_id, name, frame_count, pc, and timestamp for each
+        saved state. Does not include the raw state buffer.
+        """
+        if not session.rom_loaded:
+            return {
+                "error": "NO_ROM_LOADED",
+                "message": "Load a ROM first with gb_load_rom.",
+            }
+        states = [
+            {
+                "state_id": sid,
+                "name": s["name"],
+                "frame_count": s["frame_count"],
+                "pc": s["pc"],
+                "timestamp": s["timestamp"],
+            }
+            for sid, s in session.save_states.items()
+        ]
+        return {"status": "ok", "states": states}
+
+    @mcp.tool()
+    def gb_delete_state(state_id: int) -> dict:
+        """Delete a previously saved emulator state.
+
+        Returns {"error": "NOT_FOUND", ...} if the state_id does not exist.
+        """
+        if not session.rom_loaded:
+            return {
+                "error": "NO_ROM_LOADED",
+                "message": "Load a ROM first with gb_load_rom.",
+            }
+        if state_id not in session.save_states:
+            return {
+                "error": "NOT_FOUND",
+                "message": f"State {state_id} not found.",
+            }
+        session.save_states.pop(state_id)
+        return {"status": "ok", "state_id": state_id}
