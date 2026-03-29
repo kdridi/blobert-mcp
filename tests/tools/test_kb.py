@@ -295,3 +295,207 @@ class TestKbStats:
         tool = _get_tool(_make_mcp(session), "kb_stats")
         result = tool()
         assert result["total_addresses"] == 65536
+
+
+# ---------------------------------------------------------------------------
+# kb_define_struct
+# ---------------------------------------------------------------------------
+
+_SPRITE_FIELDS = [
+    {"name": "y", "offset": 0, "type": "u8", "size": 1},
+    {"name": "x", "offset": 1, "type": "u8", "size": 1},
+    {"name": "tile", "offset": 2, "type": "u8", "size": 1},
+    {"name": "flags", "offset": 3, "type": "u8", "size": 1},
+]
+
+
+class TestKbDefineStruct:
+    def test_no_rom_returns_error(self):
+        session = FakeEmulatorSession()
+        tool = _get_tool(_make_mcp(session), "kb_define_struct")
+        result = tool(name="Sprite", fields=_SPRITE_FIELDS)
+        assert result["error"] == "NO_ROM_LOADED"
+
+    def test_happy_path_returns_struct_id(self):
+        session = FakeEmulatorSession(with_kb=True)
+        tool = _get_tool(_make_mcp(session), "kb_define_struct")
+        result = tool(name="Sprite", fields=_SPRITE_FIELDS)
+        assert "error" not in result
+        assert "struct_id" in result
+        assert isinstance(result["struct_id"], int)
+
+    def test_duplicate_name_returns_error(self):
+        session = FakeEmulatorSession(with_kb=True)
+        tool = _get_tool(_make_mcp(session), "kb_define_struct")
+        tool(name="Sprite", fields=_SPRITE_FIELDS)
+        result = tool(name="Sprite", fields=_SPRITE_FIELDS)
+        assert result["error"] == "INVALID_PARAMETER"
+
+    def test_invalid_field_type_returns_error(self):
+        session = FakeEmulatorSession(with_kb=True)
+        tool = _get_tool(_make_mcp(session), "kb_define_struct")
+        bad = [{"name": "x", "offset": 0, "type": "int32", "size": 4}]
+        result = tool(name="Bad", fields=bad)
+        assert result["error"] == "INVALID_PARAMETER"
+
+    def test_overlapping_fields_returns_error(self):
+        session = FakeEmulatorSession(with_kb=True)
+        tool = _get_tool(_make_mcp(session), "kb_define_struct")
+        bad = [
+            {"name": "a", "offset": 0, "type": "u16", "size": 2},
+            {"name": "b", "offset": 1, "type": "u8", "size": 1},
+        ]
+        result = tool(name="Bad", fields=bad)
+        assert result["error"] == "INVALID_PARAMETER"
+
+    def test_empty_name_returns_error(self):
+        session = FakeEmulatorSession(with_kb=True)
+        tool = _get_tool(_make_mcp(session), "kb_define_struct")
+        result = tool(name="", fields=_SPRITE_FIELDS)
+        assert result["error"] == "INVALID_PARAMETER"
+
+    def test_with_comment(self):
+        session = FakeEmulatorSession(with_kb=True)
+        tool = _get_tool(_make_mcp(session), "kb_define_struct")
+        result = tool(name="Sprite", fields=_SPRITE_FIELDS, comment="OAM entry")
+        assert "struct_id" in result
+
+
+# ---------------------------------------------------------------------------
+# kb_apply_struct
+# ---------------------------------------------------------------------------
+
+
+class TestKbApplyStruct:
+    def test_no_rom_returns_error(self):
+        session = FakeEmulatorSession()
+        tool = _get_tool(_make_mcp(session), "kb_apply_struct")
+        result = tool(struct_name="Sprite", address=0xFE00)
+        assert result["error"] == "NO_ROM_LOADED"
+
+    def test_happy_path_single(self):
+        session = FakeEmulatorSession(with_kb=True)
+        session.kb.define_struct("Sprite", _SPRITE_FIELDS)
+        # Write test bytes into fake memory at OAM area
+        session.pyboy.memory._data[0xFE00] = 0x10  # y
+        session.pyboy.memory._data[0xFE01] = 0x20  # x
+        session.pyboy.memory._data[0xFE02] = 0x05  # tile
+        session.pyboy.memory._data[0xFE03] = 0x80  # flags
+        tool = _get_tool(_make_mcp(session), "kb_apply_struct")
+        result = tool(struct_name="Sprite", address=0xFE00)
+        assert "error" not in result
+        assert result["count"] == 1
+        entry = result["entries"][0]
+        assert entry["index"] == 0
+        fields = {f["name"]: f["value"] for f in entry["fields"]}
+        assert fields["y"] == 0x10
+        assert fields["x"] == 0x20
+        assert fields["tile"] == 0x05
+        assert fields["flags"] == 0x80
+
+    def test_happy_path_with_count(self):
+        session = FakeEmulatorSession(with_kb=True)
+        session.kb.define_struct("Sprite", _SPRITE_FIELDS)
+        # Two sprites at consecutive addresses
+        for i, b in enumerate([0x10, 0x20, 0x05, 0x80]):
+            session.pyboy.memory._data[0xFE00 + i] = b
+        for i, b in enumerate([0x30, 0x40, 0x0A, 0x00]):
+            session.pyboy.memory._data[0xFE04 + i] = b
+        tool = _get_tool(_make_mcp(session), "kb_apply_struct")
+        result = tool(struct_name="Sprite", address=0xFE00, count=2)
+        assert result["count"] == 2
+        assert len(result["entries"]) == 2
+        e0_fields = {f["name"]: f["value"] for f in result["entries"][0]["fields"]}
+        e1_fields = {f["name"]: f["value"] for f in result["entries"][1]["fields"]}
+        assert e0_fields["y"] == 0x10
+        assert e1_fields["y"] == 0x30
+
+    def test_unknown_struct_returns_error(self):
+        session = FakeEmulatorSession(with_kb=True)
+        tool = _get_tool(_make_mcp(session), "kb_apply_struct")
+        result = tool(struct_name="Nonexistent", address=0xFE00)
+        assert result["error"] == "NOT_FOUND"
+
+    def test_u16_little_endian(self):
+        session = FakeEmulatorSession(with_kb=True)
+        fields = [{"name": "addr", "offset": 0, "type": "u16", "size": 2}]
+        session.kb.define_struct("Ptr", fields)
+        session.pyboy.memory._data[0x0100] = 0x34
+        session.pyboy.memory._data[0x0101] = 0x12
+        tool = _get_tool(_make_mcp(session), "kb_apply_struct")
+        result = tool(struct_name="Ptr", address=0x0100)
+        decoded = result["entries"][0]["fields"][0]
+        assert decoded["value"] == 0x1234
+
+    def test_invalid_address_returns_error(self):
+        session = FakeEmulatorSession(with_kb=True)
+        tool = _get_tool(_make_mcp(session), "kb_apply_struct")
+        result = tool(struct_name="Sprite", address=0x10000)
+        assert result["error"] == "INVALID_PARAMETER"
+
+    def test_count_zero_returns_error(self):
+        session = FakeEmulatorSession(with_kb=True)
+        session.kb.define_struct("Sprite", _SPRITE_FIELDS)
+        tool = _get_tool(_make_mcp(session), "kb_apply_struct")
+        result = tool(struct_name="Sprite", address=0xFE00, count=0)
+        assert result["error"] == "INVALID_PARAMETER"
+
+    def test_count_negative_returns_error(self):
+        session = FakeEmulatorSession(with_kb=True)
+        session.kb.define_struct("Sprite", _SPRITE_FIELDS)
+        tool = _get_tool(_make_mcp(session), "kb_apply_struct")
+        result = tool(struct_name="Sprite", address=0xFE00, count=-1)
+        assert result["error"] == "INVALID_PARAMETER"
+
+
+# ---------------------------------------------------------------------------
+# kb_define_enum
+# ---------------------------------------------------------------------------
+
+
+class TestKbDefineEnum:
+    def test_no_rom_returns_error(self):
+        session = FakeEmulatorSession()
+        tool = _get_tool(_make_mcp(session), "kb_define_enum")
+        result = tool(name="Direction", values={"UP": 0})
+        assert result["error"] == "NO_ROM_LOADED"
+
+    def test_happy_path_returns_enum_id(self):
+        session = FakeEmulatorSession(with_kb=True)
+        tool = _get_tool(_make_mcp(session), "kb_define_enum")
+        values = {"UP": 0, "DOWN": 1, "LEFT": 2, "RIGHT": 3}
+        result = tool(name="Direction", values=values)
+        assert "error" not in result
+        assert "enum_id" in result
+        assert isinstance(result["enum_id"], int)
+
+    def test_duplicate_name_returns_error(self):
+        session = FakeEmulatorSession(with_kb=True)
+        tool = _get_tool(_make_mcp(session), "kb_define_enum")
+        tool(name="Direction", values={"UP": 0})
+        result = tool(name="Direction", values={"DOWN": 1})
+        assert result["error"] == "INVALID_PARAMETER"
+
+    def test_empty_values_returns_error(self):
+        session = FakeEmulatorSession(with_kb=True)
+        tool = _get_tool(_make_mcp(session), "kb_define_enum")
+        result = tool(name="Empty", values={})
+        assert result["error"] == "INVALID_PARAMETER"
+
+    def test_duplicate_numeric_values_returns_error(self):
+        session = FakeEmulatorSession(with_kb=True)
+        tool = _get_tool(_make_mcp(session), "kb_define_enum")
+        result = tool(name="Bad", values={"A": 0, "B": 0})
+        assert result["error"] == "INVALID_PARAMETER"
+
+    def test_empty_name_returns_error(self):
+        session = FakeEmulatorSession(with_kb=True)
+        tool = _get_tool(_make_mcp(session), "kb_define_enum")
+        result = tool(name="", values={"UP": 0})
+        assert result["error"] == "INVALID_PARAMETER"
+
+    def test_with_comment(self):
+        session = FakeEmulatorSession(with_kb=True)
+        tool = _get_tool(_make_mcp(session), "kb_define_enum")
+        result = tool(name="Direction", values={"UP": 0}, comment="D-pad")
+        assert "enum_id" in result
