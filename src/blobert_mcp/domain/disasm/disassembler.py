@@ -2,14 +2,57 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 
 from blobert_mcp.domain.disasm.decoder import Instruction, decode_instruction
 
 _MEMORY_READER = Callable[[int, int], bytes]
+_LABEL_RESOLVER = Callable[[int], str | None]
 
 _TERMINALS = frozenset({0xC9, 0xD9})  # RET, RETI
 _JP_NN = 0xC3
+
+_ADDR_RE = re.compile(r"^0x([0-9A-Fa-f]{4})$")
+_INDIRECT_ADDR_RE = re.compile(r"^\(0x([0-9A-Fa-f]{4})\)$")
+
+
+def _resolve_labels(
+    instructions: list[Instruction],
+    label_resolver: _LABEL_RESOLVER | None,
+) -> list[Instruction]:
+    """Enrich address operands with labels from *label_resolver*.
+
+    Returns *instructions* unchanged if *label_resolver* is None.
+    """
+    if label_resolver is None:
+        return instructions
+
+    result: list[Instruction] = []
+    for instr in instructions:
+        new_operands: list[str] | None = None
+        for idx, op in enumerate(instr.operands):
+            m = _ADDR_RE.match(op) or _INDIRECT_ADDR_RE.match(op)
+            if m:
+                addr = int(m.group(1), 16)
+                label = label_resolver(addr)
+                if label is not None:
+                    if new_operands is None:
+                        new_operands = list(instr.operands)
+                    new_operands[idx] = f"{op} ; {label}"
+        if new_operands is not None:
+            result.append(
+                Instruction(
+                    address=instr.address,
+                    raw_bytes=instr.raw_bytes,
+                    mnemonic=instr.mnemonic,
+                    operands=new_operands,
+                    size=instr.size,
+                )
+            )
+        else:
+            result.append(instr)
+    return result
 
 
 def disassemble_range(
@@ -18,6 +61,7 @@ def disassemble_range(
     length: int | None = None,
     end_address: int | None = None,
     bank: int | None = None,
+    label_resolver: _LABEL_RESOLVER | None = None,
 ) -> list[Instruction]:
     """Decode instructions from *address* until *length* bytes consumed, *end_address*
     reached, or the 256-instruction safety cap is hit.
@@ -40,13 +84,14 @@ def disassemble_range(
         instructions.append(instr)
         current += instr.size
 
-    return instructions
+    return _resolve_labels(instructions, label_resolver)
 
 
 def disassemble_function(
     memory_reader: _MEMORY_READER,
     entry_point: int,
     bank: int | None = None,
+    label_resolver: _LABEL_RESOLVER | None = None,
 ) -> dict:
     """Trace a function from *entry_point*, stopping at terminal instructions.
 
@@ -76,7 +121,8 @@ def disassemble_function(
         current += instr.size
 
     size_bytes = sum(i.size for i in instructions)
-    return {"instructions": instructions, "size_bytes": size_bytes}
+    resolved = _resolve_labels(instructions, label_resolver)
+    return {"instructions": resolved, "size_bytes": size_bytes}
 
 
 def disassemble_at_pc(
@@ -84,6 +130,7 @@ def disassemble_at_pc(
     pc: int,
     before: int = 5,
     after: int = 20,
+    label_resolver: _LABEL_RESOLVER | None = None,
 ) -> list[Instruction]:
     """Return instructions around *pc*.
 
@@ -104,7 +151,7 @@ def disassemble_at_pc(
         post_instructions.append(instr)
         current += instr.size
 
-    return pre_instructions + post_instructions
+    return _resolve_labels(pre_instructions + post_instructions, label_resolver)
 
 
 def _scan_before(

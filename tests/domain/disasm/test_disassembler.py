@@ -195,3 +195,164 @@ class TestDisassembleAtPc:
         assert 0x0006 in addresses
         assert 0x0007 in addresses
         assert 0x0008 in addresses
+
+
+# ---------------------------------------------------------------------------
+# Label resolution
+# ---------------------------------------------------------------------------
+
+
+def _label_map(labels: dict[int, str]):
+    """Build a label_resolver from an address→name mapping."""
+
+    def resolve(addr: int) -> str | None:
+        return labels.get(addr)
+
+    return resolve
+
+
+def _label_all(name: str):
+    """Build a label_resolver that returns *name* for every address."""
+
+    def resolve(addr: int) -> str | None:
+        return name
+
+    return resolve
+
+
+def _label_none(addr: int) -> str | None:
+    """A label_resolver that always returns None."""
+    return None
+
+
+class TestLabelResolution:
+    """Tests for label_resolver callback integration."""
+
+    def test_call_label_injected(self):
+        # CALL 0x1000 (CD 00 10) + RET (C9)
+        reader = _reader(b"\xcd\x00\x10\xc9")
+        instrs = disassemble_range(
+            reader,
+            0x0000,
+            length=4,
+            label_resolver=_label_map({0x1000: "play_sound"}),
+        )
+        assert instrs[0].operands == ["0x1000 ; play_sound"]
+
+    def test_jp_label_injected(self):
+        # JP 0x2000 (C3 00 20)
+        reader = _reader(b"\xc3\x00\x20")
+        instrs = disassemble_range(
+            reader,
+            0x0000,
+            length=3,
+            label_resolver=_label_map({0x2000: "main_loop"}),
+        )
+        assert instrs[0].operands == ["0x2000 ; main_loop"]
+
+    def test_indirect_a16_label_injected(self):
+        # LD A,(0x1234) — opcode FA, little-endian 34 12
+        reader = _reader(b"\xfa\x34\x12")
+        instrs = disassemble_range(
+            reader,
+            0x0000,
+            length=3,
+            label_resolver=_label_map({0x1234: "player_hp"}),
+        )
+        assert instrs[0].operands == ["A", "(0x1234) ; player_hp"]
+
+    def test_indirect_a8_label_injected(self):
+        # LDH A,(a8) with byte 0x44 — opcode F0, produces (0xFF44)
+        reader = _reader(b"\xf0\x44")
+        instrs = disassemble_range(
+            reader,
+            0x0000,
+            length=2,
+            label_resolver=_label_map({0xFF44: "LCDC"}),
+        )
+        assert instrs[0].operands == ["A", "(0xFF44) ; LCDC"]
+
+    def test_jr_resolved_label_injected(self):
+        # JR +3 at address 0x0100 — opcode 18, offset 03
+        # Resolved target: 0x0100 + 2 + 3 = 0x0105
+        data = bytearray(0x0103)
+        data[0x0100] = 0x18
+        data[0x0101] = 0x03
+        reader = _reader(bytes(data))
+        instrs = disassemble_range(
+            reader,
+            0x0100,
+            length=2,
+            label_resolver=_label_map({0x0105: "loop"}),
+        )
+        assert instrs[0].operands == ["0x0105 ; loop"]
+
+    def test_conditional_jp_label_on_address_only(self):
+        # JP NZ,0x3000 (C2 00 30) + RET (C9)
+        reader = _reader(b"\xc2\x00\x30\xc9")
+        instrs = disassemble_range(
+            reader,
+            0x0000,
+            length=4,
+            label_resolver=_label_map({0x3000: "skip"}),
+        )
+        assert instrs[0].operands == ["NZ", "0x3000 ; skip"]
+
+    def test_no_label_when_resolver_is_none(self):
+        # CALL 0x1000 + RET — no label_resolver argument
+        reader = _reader(b"\xcd\x00\x10\xc9")
+        instrs = disassemble_range(reader, 0x0000, length=4)
+        assert instrs[0].operands == ["0x1000"]
+
+    def test_no_label_when_resolver_returns_none(self):
+        # CALL 0x1000 + RET — resolver always returns None
+        reader = _reader(b"\xcd\x00\x10\xc9")
+        instrs = disassemble_range(reader, 0x0000, length=4, label_resolver=_label_none)
+        assert instrs[0].operands == ["0x1000"]
+
+    def test_d8_operand_not_enriched(self):
+        # LD B,0xFF — opcode 06, byte FF
+        reader = _reader(b"\x06\xff")
+        instrs = disassemble_range(
+            reader,
+            0x0000,
+            length=2,
+            label_resolver=_label_all("should_not_appear"),
+        )
+        assert instrs[0].operands == ["B", "0xFF"]
+
+    def test_register_operands_not_enriched(self):
+        # LD A,B — opcode 78
+        reader = _reader(b"\x78")
+        instrs = disassemble_range(
+            reader,
+            0x0000,
+            length=1,
+            label_resolver=_label_all("nope"),
+        )
+        assert instrs[0].operands == ["A", "B"]
+
+    def test_function_with_label_resolver(self):
+        # CALL 0x2000 (CD 00 20) + RET (C9)
+        reader = _reader(b"\xcd\x00\x20\xc9")
+        result = disassemble_function(
+            reader,
+            0x0000,
+            label_resolver=_label_map({0x2000: "helper"}),
+        )
+        assert result["instructions"][0].operands == ["0x2000 ; helper"]
+
+    def test_at_pc_with_label_resolver(self):
+        # NOP NOP NOP CALL_0x1000 at 0x0003
+        data = b"\x00\x00\x00\xcd\x00\x10" + b"\x00" * 30
+        reader = _reader(data)
+        instrs = disassemble_at_pc(
+            reader,
+            pc=0x0003,
+            before=1,
+            after=0,
+            label_resolver=_label_map({0x1000: "target"}),
+        )
+        call_instrs = [i for i in instrs if i.mnemonic == "CALL"]
+        assert len(call_instrs) == 1
+        assert call_instrs[0].operands == ["0x1000 ; target"]

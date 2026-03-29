@@ -33,6 +33,9 @@ def register_disasm_tools(mcp, session) -> None:
     def _reader():
         return lambda addr, n: bytes(session.pyboy.memory[addr : addr + n])
 
+    def _label_resolver():
+        return session.kb.get_label if session.kb else None
+
     @mcp.tool()
     def gb_disassemble_range(
         address: int,
@@ -56,7 +59,11 @@ def register_disasm_tools(mcp, session) -> None:
                 "message": "Load a ROM first with gb_load_rom.",
             }
         instrs = disassemble_range(
-            _reader(), address, length=length, end_address=end_address
+            _reader(),
+            address,
+            length=length,
+            end_address=end_address,
+            label_resolver=_label_resolver(),
         )
         return {
             "address": f"0x{address:04X}",
@@ -77,7 +84,9 @@ def register_disasm_tools(mcp, session) -> None:
                 "error": "NO_ROM_LOADED",
                 "message": "Load a ROM first with gb_load_rom.",
             }
-        result = disassemble_function(_reader(), entry_point)
+        result = disassemble_function(
+            _reader(), entry_point, label_resolver=_label_resolver()
+        )
         instrs = result["instructions"]
         return {
             "entry_point": f"0x{entry_point:04X}",
@@ -100,7 +109,9 @@ def register_disasm_tools(mcp, session) -> None:
                 "message": "Load a ROM first with gb_load_rom.",
             }
         pc = session.pyboy.register_file.PC
-        instrs = disassemble_at_pc(_reader(), pc, before=before, after=after)
+        instrs = disassemble_at_pc(
+            _reader(), pc, before=before, after=after, label_resolver=_label_resolver()
+        )
         return {
             "pc": f"0x{pc:04X}",
             "instructions": [_fmt(i, current=(i.address == pc)) for i in instrs],

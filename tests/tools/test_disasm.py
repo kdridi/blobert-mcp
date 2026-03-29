@@ -40,12 +40,26 @@ class FakePyBoy:
         self.memory = FakeMemory(data)
 
 
+class FakeKnowledgeBase:
+    def __init__(self, labels: dict[int, str] | None = None) -> None:
+        self._labels = labels or {}
+
+    def get_label(self, address: int, bank: int | None = None) -> str | None:
+        return self._labels.get(address)
+
+
 class FakeEmulatorSession:
-    def __init__(self, *, rom_bytes: bytes | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        rom_bytes: bytes | None = None,
+        kb: FakeKnowledgeBase | None = None,
+    ) -> None:
         if rom_bytes is not None:
             self.pyboy: FakePyBoy | None = FakePyBoy(rom_bytes)
         else:
             self.pyboy = None
+        self.kb = kb
 
     @property
     def rom_loaded(self) -> bool:
@@ -206,3 +220,59 @@ class TestGbDisassembleAtPc:
         result = tool()
         assert "pc" in result
         assert "instructions" in result
+
+
+# ---------------------------------------------------------------------------
+# Label resolution wiring (KB integration)
+# ---------------------------------------------------------------------------
+
+
+class TestLabelResolutionWiring:
+    def test_range_label_from_kb(self):
+        # CALL 0x1000 at address 0x0000
+        rom = bytearray(0x8000)
+        rom[0x0000] = 0xCD
+        rom[0x0001] = 0x00
+        rom[0x0002] = 0x10
+        kb = FakeKnowledgeBase(labels={0x1000: "play_sound"})
+        session = FakeEmulatorSession(rom_bytes=bytes(rom), kb=kb)
+        tool = _get_tool(_make_mcp(session), "gb_disassemble_range")
+        result = tool(address=0x0000, length=3)
+        assert result["instructions"][0]["operands"] == ["0x1000 ; play_sound"]
+
+    def test_range_no_label_when_kb_none(self):
+        # CALL 0x1000 at address 0x0000, no KB
+        rom = bytearray(0x8000)
+        rom[0x0000] = 0xCD
+        rom[0x0001] = 0x00
+        rom[0x0002] = 0x10
+        session = FakeEmulatorSession(rom_bytes=bytes(rom))
+        tool = _get_tool(_make_mcp(session), "gb_disassemble_range")
+        result = tool(address=0x0000, length=3)
+        assert result["instructions"][0]["operands"] == ["0x1000"]
+
+    def test_function_label_from_kb(self):
+        # CALL 0x2000 + RET
+        rom = bytearray(0x8000)
+        rom[0x0000] = 0xCD
+        rom[0x0001] = 0x00
+        rom[0x0002] = 0x20
+        rom[0x0003] = 0xC9
+        kb = FakeKnowledgeBase(labels={0x2000: "helper"})
+        session = FakeEmulatorSession(rom_bytes=bytes(rom), kb=kb)
+        tool = _get_tool(_make_mcp(session), "gb_disassemble_function")
+        result = tool(entry_point=0x0000)
+        assert result["instructions"][0]["operands"] == ["0x2000 ; helper"]
+
+    def test_at_pc_label_from_kb(self):
+        # CALL 0x1000 at PC (0x0100)
+        rom = bytearray(0x8000)
+        rom[0x0100] = 0xCD
+        rom[0x0101] = 0x00
+        rom[0x0102] = 0x10
+        kb = FakeKnowledgeBase(labels={0x1000: "target"})
+        session = FakeEmulatorSession(rom_bytes=bytes(rom), kb=kb)
+        tool = _get_tool(_make_mcp(session), "gb_disassemble_at_pc")
+        result = tool(before=0, after=0)
+        current = [i for i in result["instructions"] if i.get("current")]
+        assert current[0]["operands"] == ["0x1000 ; target"]
