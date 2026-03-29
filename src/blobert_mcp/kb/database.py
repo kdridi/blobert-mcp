@@ -8,10 +8,13 @@ from pathlib import Path
 
 from blobert_mcp.domain.kb import (
     ROM_ADDRESS_LIMIT,
+    calculate_struct_total_size,
     rank_search_results,
     validate_address,
     validate_annotation_type,
+    validate_enum_values,
     validate_name,
+    validate_struct_fields,
     validate_variable_type,
 )
 
@@ -71,12 +74,49 @@ class KnowledgeBase:
                 UNIQUE(address)
             );
 
+            CREATE TABLE IF NOT EXISTS structs (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE,
+                total_size INTEGER NOT NULL,
+                comment TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS struct_fields (
+                id INTEGER PRIMARY KEY,
+                struct_id INTEGER NOT NULL REFERENCES structs(id),
+                name TEXT NOT NULL,
+                offset INTEGER NOT NULL,
+                type TEXT NOT NULL
+                    CHECK(type IN ('u8','u16','s8','s16','bool','bytes')),
+                size INTEGER NOT NULL,
+                comment TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS enums (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE,
+                comment TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS enum_values (
+                id INTEGER PRIMARY KEY,
+                enum_id INTEGER NOT NULL REFERENCES enums(id),
+                name TEXT NOT NULL,
+                value INTEGER NOT NULL
+            );
+
             CREATE INDEX IF NOT EXISTS idx_annotations_address
                 ON annotations(address, bank);
             CREATE INDEX IF NOT EXISTS idx_functions_address
                 ON functions(address, bank);
             CREATE INDEX IF NOT EXISTS idx_variables_address
                 ON variables(address);
+            CREATE INDEX IF NOT EXISTS idx_struct_fields_struct_id
+                ON struct_fields(struct_id);
+            CREATE INDEX IF NOT EXISTS idx_enum_values_enum_id
+                ON enum_values(enum_id);
             """
         )
 
@@ -447,6 +487,129 @@ class KnowledgeBase:
             "annotations": annotations,
             "variables": variables,
             "cross_references": [],
+        }
+
+    # ------------------------------------------------------------------
+    # Structs & enums
+    # ------------------------------------------------------------------
+
+    def define_struct(
+        self,
+        name: str,
+        fields: list[dict],
+        *,
+        comment: str | None = None,
+    ) -> int:
+        """Define a named struct with typed fields. Returns the struct id."""
+        validate_name(name)
+        validate_struct_fields(fields)
+        # Reject duplicate names
+        cur = self._conn.execute("SELECT id FROM structs WHERE name = ?", (name,))
+        if cur.fetchone() is not None:
+            raise ValueError(f"Struct {name!r} already exists.")
+
+        total_size = calculate_struct_total_size(fields)
+        cur = self._conn.execute(
+            "INSERT INTO structs (name, total_size, comment) VALUES (?, ?, ?)",
+            (name, total_size, comment),
+        )
+        struct_id = cur.lastrowid
+        for f in fields:
+            self._conn.execute(
+                "INSERT INTO struct_fields "
+                "(struct_id, name, offset, type, size, comment) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    struct_id,
+                    f["name"],
+                    f["offset"],
+                    f["type"],
+                    f["size"],
+                    f.get("comment"),
+                ),
+            )
+        self._conn.commit()
+        return struct_id  # type: ignore[return-value]
+
+    def define_enum(
+        self,
+        name: str,
+        values: dict[str, int],
+        *,
+        comment: str | None = None,
+    ) -> int:
+        """Define a named enum with name-to-value mapping. Returns the enum id."""
+        validate_name(name)
+        validate_enum_values(values)
+        # Reject duplicate names
+        cur = self._conn.execute("SELECT id FROM enums WHERE name = ?", (name,))
+        if cur.fetchone() is not None:
+            raise ValueError(f"Enum {name!r} already exists.")
+
+        cur = self._conn.execute(
+            "INSERT INTO enums (name, comment) VALUES (?, ?)",
+            (name, comment),
+        )
+        enum_id = cur.lastrowid
+        for vname, val in values.items():
+            self._conn.execute(
+                "INSERT INTO enum_values (enum_id, name, value) VALUES (?, ?, ?)",
+                (enum_id, vname, val),
+            )
+        self._conn.commit()
+        return enum_id  # type: ignore[return-value]
+
+    def get_struct(self, name: str) -> dict | None:
+        """Look up a struct by name. Returns dict or None."""
+        cur = self._conn.execute(
+            "SELECT id, name, total_size, comment FROM structs WHERE name = ?",
+            (name,),
+        )
+        row = cur.fetchone()
+        if row is None:
+            return None
+        struct_id, sname, total_size, comment = row
+        cur = self._conn.execute(
+            "SELECT name, offset, type, size, comment "
+            "FROM struct_fields WHERE struct_id = ? ORDER BY offset",
+            (struct_id,),
+        )
+        fields = [
+            {
+                "name": r[0],
+                "offset": r[1],
+                "type": r[2],
+                "size": r[3],
+                "comment": r[4],
+            }
+            for r in cur.fetchall()
+        ]
+        return {
+            "name": sname,
+            "total_size": total_size,
+            "comment": comment,
+            "fields": fields,
+        }
+
+    def get_enum(self, name: str) -> dict | None:
+        """Look up an enum by name. Returns dict or None."""
+        cur = self._conn.execute(
+            "SELECT id, name, comment FROM enums WHERE name = ?",
+            (name,),
+        )
+        row = cur.fetchone()
+        if row is None:
+            return None
+        enum_id, ename, comment = row
+        cur = self._conn.execute(
+            "SELECT name, value FROM enum_values WHERE enum_id = ?",
+            (enum_id,),
+        )
+        values = {r[0]: r[1] for r in cur.fetchall()}
+        return {
+            "name": ename,
+            "comment": comment,
+            "values": values,
         }
 
     # ------------------------------------------------------------------
