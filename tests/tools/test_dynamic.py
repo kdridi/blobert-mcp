@@ -385,6 +385,14 @@ class TestGbSaveState:
         state_id = result["state_id"]
         assert state_id in session_with_rom.save_states
 
+    def test_stores_timestamp(self, session_with_rom):
+        mcp = _make_mcp(session_with_rom)
+        result = _get_tool(mcp, "gb_save_state")()
+        state_id = result["state_id"]
+        entry = session_with_rom.save_states[state_id]
+        assert "timestamp" in entry
+        assert isinstance(entry["timestamp"], float)
+
     def test_with_name(self, session_with_rom):
         mcp = _make_mcp(session_with_rom)
         result = _get_tool(mcp, "gb_save_state")(name="before_boss")
@@ -429,6 +437,75 @@ class TestGbLoadState:
         save_result = _get_tool(mcp, "gb_save_state")(name="checkpoint")
         load_result = _get_tool(mcp, "gb_load_state")(state_id=save_result["state_id"])
         assert load_result["name"] == "checkpoint"
+
+
+# ---------------------------------------------------------------------------
+# TestGbListStates
+# ---------------------------------------------------------------------------
+
+
+class TestGbListStates:
+    def test_no_rom(self, session_no_rom):
+        mcp = _make_mcp(session_no_rom)
+        result = _get_tool(mcp, "gb_list_states")()
+        assert result["error"] == "NO_ROM_LOADED"
+
+    def test_empty(self, session_with_rom):
+        mcp = _make_mcp(session_with_rom)
+        result = _get_tool(mcp, "gb_list_states")()
+        assert result["status"] == "ok"
+        assert result["states"] == []
+
+    def test_lists_metadata(self, session_with_rom):
+        mcp = _make_mcp(session_with_rom)
+        save = _get_tool(mcp, "gb_save_state")
+        save(name="first")
+        save(name="second")
+        result = _get_tool(mcp, "gb_list_states")()
+        assert result["status"] == "ok"
+        assert len(result["states"]) == 2
+        for entry in result["states"]:
+            for key in ("state_id", "name", "frame_count", "pc", "timestamp"):
+                assert key in entry
+
+    def test_excludes_buffer(self, session_with_rom):
+        mcp = _make_mcp(session_with_rom)
+        _get_tool(mcp, "gb_save_state")()
+        result = _get_tool(mcp, "gb_list_states")()
+        for entry in result["states"]:
+            assert "buffer" not in entry
+
+
+# ---------------------------------------------------------------------------
+# TestGbDeleteState
+# ---------------------------------------------------------------------------
+
+
+class TestGbDeleteState:
+    def test_no_rom(self, session_no_rom):
+        mcp = _make_mcp(session_no_rom)
+        result = _get_tool(mcp, "gb_delete_state")(state_id=1)
+        assert result["error"] == "NO_ROM_LOADED"
+
+    def test_not_found(self, session_with_rom):
+        mcp = _make_mcp(session_with_rom)
+        result = _get_tool(mcp, "gb_delete_state")(state_id=999)
+        assert result["error"] == "NOT_FOUND"
+
+    def test_deletes_state(self, session_with_rom):
+        mcp = _make_mcp(session_with_rom)
+        save_result = _get_tool(mcp, "gb_save_state")()
+        state_id = save_result["state_id"]
+        _get_tool(mcp, "gb_delete_state")(state_id=state_id)
+        assert state_id not in session_with_rom.save_states
+
+    def test_returns_ok(self, session_with_rom):
+        mcp = _make_mcp(session_with_rom)
+        save_result = _get_tool(mcp, "gb_save_state")()
+        state_id = save_result["state_id"]
+        result = _get_tool(mcp, "gb_delete_state")(state_id=state_id)
+        assert result["status"] == "ok"
+        assert result["state_id"] == state_id
 
 
 # ---------------------------------------------------------------------------
