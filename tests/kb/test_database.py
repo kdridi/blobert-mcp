@@ -598,3 +598,228 @@ class TestClose:
         # After close, operations should fail
         with pytest.raises(Exception):
             kb._conn.execute("SELECT 1")
+
+
+# ---------------------------------------------------------------------------
+# struct/enum tables created
+# ---------------------------------------------------------------------------
+
+
+class TestCreateTablesStructEnum:
+    def test_struct_tables_exist(self):
+        kb = _make_kb()
+        cur = kb._conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+        )
+        tables = [row[0] for row in cur.fetchall()]
+        assert "structs" in tables
+        assert "struct_fields" in tables
+        kb.close()
+
+    def test_enum_tables_exist(self):
+        kb = _make_kb()
+        cur = kb._conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+        )
+        tables = [row[0] for row in cur.fetchall()]
+        assert "enums" in tables
+        assert "enum_values" in tables
+        kb.close()
+
+
+# ---------------------------------------------------------------------------
+# define_struct
+# ---------------------------------------------------------------------------
+
+_SPRITE_FIELDS = [
+    {"name": "y", "offset": 0, "type": "u8", "size": 1},
+    {"name": "x", "offset": 1, "type": "u8", "size": 1},
+    {"name": "tile", "offset": 2, "type": "u8", "size": 1},
+    {"name": "flags", "offset": 3, "type": "u8", "size": 1},
+]
+
+
+class TestDefineStruct:
+    def test_create_returns_id(self):
+        kb = _make_kb()
+        sid = kb.define_struct("Sprite", _SPRITE_FIELDS)
+        assert isinstance(sid, int)
+        assert sid > 0
+        kb.close()
+
+    def test_total_size_computed(self):
+        kb = _make_kb()
+        kb.define_struct("Sprite", _SPRITE_FIELDS)
+        cur = kb._conn.execute(
+            "SELECT total_size FROM structs WHERE name = ?", ("Sprite",)
+        )
+        assert cur.fetchone()[0] == 4
+        kb.close()
+
+    def test_with_comment(self):
+        kb = _make_kb()
+        kb.define_struct("Sprite", _SPRITE_FIELDS, comment="OAM entry")
+        cur = kb._conn.execute(
+            "SELECT comment FROM structs WHERE name = ?", ("Sprite",)
+        )
+        assert cur.fetchone()[0] == "OAM entry"
+        kb.close()
+
+    def test_fields_stored_correctly(self):
+        kb = _make_kb()
+        kb.define_struct("Sprite", _SPRITE_FIELDS)
+        cur = kb._conn.execute(
+            "SELECT name, offset, type, size FROM struct_fields "
+            "WHERE struct_id = (SELECT id FROM structs WHERE name = 'Sprite') "
+            "ORDER BY offset"
+        )
+        rows = cur.fetchall()
+        assert len(rows) == 4
+        assert rows[0] == ("y", 0, "u8", 1)
+        assert rows[1] == ("x", 1, "u8", 1)
+        assert rows[2] == ("tile", 2, "u8", 1)
+        assert rows[3] == ("flags", 3, "u8", 1)
+        kb.close()
+
+    def test_duplicate_name_raises_valueerror(self):
+        kb = _make_kb()
+        kb.define_struct("Sprite", _SPRITE_FIELDS)
+        with pytest.raises(ValueError, match="already exists"):
+            kb.define_struct("Sprite", _SPRITE_FIELDS)
+        kb.close()
+
+    def test_empty_name_raises_valueerror(self):
+        kb = _make_kb()
+        with pytest.raises(ValueError, match="name"):
+            kb.define_struct("", _SPRITE_FIELDS)
+        kb.close()
+
+    def test_invalid_field_type_raises_valueerror(self):
+        kb = _make_kb()
+        bad_fields = [{"name": "x", "offset": 0, "type": "int32", "size": 4}]
+        with pytest.raises(ValueError, match="struct field type"):
+            kb.define_struct("Bad", bad_fields)
+        kb.close()
+
+    def test_overlapping_fields_raises_valueerror(self):
+        kb = _make_kb()
+        bad_fields = [
+            {"name": "a", "offset": 0, "type": "u16", "size": 2},
+            {"name": "b", "offset": 1, "type": "u8", "size": 1},
+        ]
+        with pytest.raises(ValueError, match="overlap"):
+            kb.define_struct("Bad", bad_fields)
+        kb.close()
+
+
+# ---------------------------------------------------------------------------
+# define_enum
+# ---------------------------------------------------------------------------
+
+_DIRECTION_VALUES = {"UP": 0, "DOWN": 1, "LEFT": 2, "RIGHT": 3}
+
+
+class TestDefineEnum:
+    def test_create_returns_id(self):
+        kb = _make_kb()
+        eid = kb.define_enum("Direction", _DIRECTION_VALUES)
+        assert isinstance(eid, int)
+        assert eid > 0
+        kb.close()
+
+    def test_values_stored_correctly(self):
+        kb = _make_kb()
+        kb.define_enum("Direction", _DIRECTION_VALUES)
+        cur = kb._conn.execute(
+            "SELECT name, value FROM enum_values "
+            "WHERE enum_id = (SELECT id FROM enums WHERE name = 'Direction') "
+            "ORDER BY value"
+        )
+        rows = cur.fetchall()
+        assert len(rows) == 4
+        assert ("UP", 0) in rows
+        assert ("DOWN", 1) in rows
+        assert ("LEFT", 2) in rows
+        assert ("RIGHT", 3) in rows
+        kb.close()
+
+    def test_with_comment(self):
+        kb = _make_kb()
+        kb.define_enum("Direction", _DIRECTION_VALUES, comment="D-pad")
+        cur = kb._conn.execute(
+            "SELECT comment FROM enums WHERE name = ?", ("Direction",)
+        )
+        assert cur.fetchone()[0] == "D-pad"
+        kb.close()
+
+    def test_duplicate_name_raises_valueerror(self):
+        kb = _make_kb()
+        kb.define_enum("Direction", _DIRECTION_VALUES)
+        with pytest.raises(ValueError, match="already exists"):
+            kb.define_enum("Direction", _DIRECTION_VALUES)
+        kb.close()
+
+    def test_empty_name_raises_valueerror(self):
+        kb = _make_kb()
+        with pytest.raises(ValueError, match="name"):
+            kb.define_enum("", _DIRECTION_VALUES)
+        kb.close()
+
+    def test_empty_values_raises_valueerror(self):
+        kb = _make_kb()
+        with pytest.raises(ValueError, match="empty"):
+            kb.define_enum("Empty", {})
+        kb.close()
+
+    def test_duplicate_numeric_values_raises_valueerror(self):
+        kb = _make_kb()
+        with pytest.raises(ValueError, match="(?i)duplicate"):
+            kb.define_enum("Bad", {"A": 0, "B": 0})
+        kb.close()
+
+
+# ---------------------------------------------------------------------------
+# get_struct
+# ---------------------------------------------------------------------------
+
+
+class TestGetStruct:
+    def test_returns_struct_with_fields(self):
+        kb = _make_kb()
+        kb.define_struct("Sprite", _SPRITE_FIELDS, comment="OAM")
+        result = kb.get_struct("Sprite")
+        assert result is not None
+        assert result["name"] == "Sprite"
+        assert result["total_size"] == 4
+        assert result["comment"] == "OAM"
+        assert len(result["fields"]) == 4
+        assert result["fields"][0]["name"] == "y"
+        assert result["fields"][0]["offset"] == 0
+        kb.close()
+
+    def test_returns_none_for_unknown(self):
+        kb = _make_kb()
+        assert kb.get_struct("Nonexistent") is None
+        kb.close()
+
+
+# ---------------------------------------------------------------------------
+# get_enum
+# ---------------------------------------------------------------------------
+
+
+class TestGetEnum:
+    def test_returns_enum_with_values(self):
+        kb = _make_kb()
+        kb.define_enum("Direction", _DIRECTION_VALUES, comment="D-pad")
+        result = kb.get_enum("Direction")
+        assert result is not None
+        assert result["name"] == "Direction"
+        assert result["comment"] == "D-pad"
+        assert result["values"] == _DIRECTION_VALUES
+        kb.close()
+
+    def test_returns_none_for_unknown(self):
+        kb = _make_kb()
+        assert kb.get_enum("Nonexistent") is None
+        kb.close()
