@@ -32,6 +32,7 @@ Format: **Context** (why we faced a choice), **Decision** (what we chose),
 | D-017 | 2026-03-29 | Instruction stepping via hook + timeout | BLO-022 |
 | D-018 | 2026-03-29 | Screenshot returns FastMCP Image | BLO-022 |
 | D-019 | 2026-03-29 | Hook API — keep existing 3-arg form | BLO-022 |
+| D-020 | 2026-03-29 | Default GB custom encoding table | BLO-034 |
 
 ---
 
@@ -352,3 +353,24 @@ stepping and `gb_run_until` use the same convention.
 and screenshot, not hook API fixes. A follow-up ticket can align
 the hook API with real PyBoy if needed when testing against real
 hardware.
+
+---
+
+### D-020: Default GB custom encoding table
+**Date:** 2026-03-29 | **Ticket:** BLO-034
+
+**Context:** `find_strings` supports a `gb_custom` encoding for
+Game Boy text detection. There is no universal GB character
+encoding — each game may define its own table.
+
+**Decision:** Provide a common default mapping in
+`domain/search.py`: uppercase (0x80-0x99), lowercase (0xA0-0xB9),
+digits (0xBA-0xC3), space (0x7F), and common punctuation
+(0xE0-0xE5). Document that game-specific tables may differ.
+
+**Why:** A default table enables useful text detection out of the
+box for many games without requiring per-game configuration.
+The chosen ranges cover the most common subset seen across
+popular Game Boy titles. Rejected: no default (too restrictive —
+gb_custom would be useless without a table), per-game tables
+(scope creep — can be added later as KB extension).
