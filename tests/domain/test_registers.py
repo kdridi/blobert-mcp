@@ -4,7 +4,16 @@ from __future__ import annotations
 
 import pytest
 
-from blobert_mcp.domain.registers import format_registers
+from blobert_mcp.domain.registers import (
+    ALL_REGISTERS,
+    REGISTERS_8BIT,
+    REGISTERS_16BIT,
+    format_registers,
+    get_register_size,
+    normalize_register_name,
+    validate_register_name,
+    validate_register_value,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -236,3 +245,144 @@ class TestReturnStructure:
     def test_flags_are_bools(self, flag):
         result = _all_zeros()
         assert isinstance(result["flags"][flag], bool)
+
+
+# ---------------------------------------------------------------------------
+# Register constants
+# ---------------------------------------------------------------------------
+
+
+class TestRegisterConstants:
+    def test_registers_8bit_set(self):
+        assert REGISTERS_8BIT == {"A", "B", "C", "D", "E", "F", "H", "L"}
+
+    def test_registers_16bit_set(self):
+        assert REGISTERS_16BIT == {"SP", "PC"}
+
+    def test_all_registers_is_union(self):
+        assert ALL_REGISTERS == REGISTERS_8BIT | REGISTERS_16BIT
+
+    def test_constants_are_frozensets(self):
+        assert isinstance(REGISTERS_8BIT, frozenset)
+        assert isinstance(REGISTERS_16BIT, frozenset)
+        assert isinstance(ALL_REGISTERS, frozenset)
+
+
+# ---------------------------------------------------------------------------
+# normalize_register_name
+# ---------------------------------------------------------------------------
+
+
+class TestNormalizeRegisterName:
+    def test_lowercase_to_uppercase(self):
+        assert normalize_register_name("a") == "A"
+
+    def test_already_uppercase(self):
+        assert normalize_register_name("SP") == "SP"
+
+    def test_mixed_case(self):
+        assert normalize_register_name("sP") == "SP"
+
+    def test_strips_whitespace(self):
+        assert normalize_register_name("  a  ") == "A"
+
+
+# ---------------------------------------------------------------------------
+# validate_register_name
+# ---------------------------------------------------------------------------
+
+
+class TestValidateRegisterName:
+    @pytest.mark.parametrize(
+        "name", ["A", "B", "C", "D", "E", "F", "H", "L", "SP", "PC"]
+    )
+    def test_valid_names_accepted(self, name):
+        assert validate_register_name(name) == name
+
+    def test_returns_normalized_uppercase(self):
+        assert validate_register_name("sp") == "SP"
+
+    def test_invalid_name_raises_valueerror(self):
+        with pytest.raises(ValueError, match="X"):
+            validate_register_name("X")
+
+    def test_composite_name_rejected(self):
+        with pytest.raises(ValueError, match="AF"):
+            validate_register_name("AF")
+
+    def test_empty_string_raises_valueerror(self):
+        with pytest.raises(ValueError):
+            validate_register_name("")
+
+
+# ---------------------------------------------------------------------------
+# validate_register_value
+# ---------------------------------------------------------------------------
+
+
+class TestValidateRegisterValue:
+    @pytest.mark.parametrize("reg", ["A", "B", "C", "D", "E", "H", "L"])
+    def test_8bit_zero_accepted(self, reg):
+        assert validate_register_value(reg, 0x00) == 0x00
+
+    @pytest.mark.parametrize("reg", ["A", "B", "C", "D", "E", "H", "L"])
+    def test_8bit_max_accepted(self, reg):
+        assert validate_register_value(reg, 0xFF) == 0xFF
+
+    def test_8bit_over_max_raises(self):
+        with pytest.raises(ValueError):
+            validate_register_value("A", 0x100)
+
+    def test_8bit_negative_raises(self):
+        with pytest.raises(ValueError):
+            validate_register_value("A", -1)
+
+    @pytest.mark.parametrize("reg", ["SP", "PC"])
+    def test_16bit_zero_accepted(self, reg):
+        assert validate_register_value(reg, 0x0000) == 0x0000
+
+    @pytest.mark.parametrize("reg", ["SP", "PC"])
+    def test_16bit_max_accepted(self, reg):
+        assert validate_register_value(reg, 0xFFFF) == 0xFFFF
+
+    def test_16bit_over_max_raises(self):
+        with pytest.raises(ValueError):
+            validate_register_value("SP", 0x10000)
+
+    def test_16bit_negative_raises(self):
+        with pytest.raises(ValueError):
+            validate_register_value("PC", -1)
+
+    def test_f_register_masks_lower_nibble(self):
+        assert validate_register_value("F", 0xFF) == 0xF0
+
+    def test_f_register_0x0f_masked_to_0x00(self):
+        assert validate_register_value("F", 0x0F) == 0x00
+
+    def test_f_register_0xf0_unchanged(self):
+        assert validate_register_value("F", 0xF0) == 0xF0
+
+    def test_non_f_8bit_returns_value_unchanged(self):
+        assert validate_register_value("A", 0x42) == 0x42
+
+    def test_16bit_returns_value_unchanged(self):
+        assert validate_register_value("SP", 0x1234) == 0x1234
+
+
+# ---------------------------------------------------------------------------
+# get_register_size
+# ---------------------------------------------------------------------------
+
+
+class TestGetRegisterSize:
+    @pytest.mark.parametrize("reg", ["A", "B", "C", "D", "E", "F", "H", "L"])
+    def test_8bit_registers_return_8(self, reg):
+        assert get_register_size(reg) == 8
+
+    @pytest.mark.parametrize("reg", ["SP", "PC"])
+    def test_16bit_registers_return_16(self, reg):
+        assert get_register_size(reg) == 16
+
+    def test_invalid_register_raises(self):
+        with pytest.raises(ValueError):
+            get_register_size("X")
