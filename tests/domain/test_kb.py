@@ -6,7 +6,9 @@ import pytest
 
 from blobert_mcp.domain.kb import (
     ANNOTATION_TYPES,
+    ROM_ADDRESS_LIMIT,
     VARIABLE_TYPES,
+    calculate_coverage_pct,
     rank_search_results,
     validate_address,
     validate_annotation_type,
@@ -147,3 +149,33 @@ class TestRankSearchResults:
         ranked = rank_search_results(results, "stuff")
         # "stuff_handler" has prefix match, "do_stuff" has substring
         assert ranked[0]["name"] == "stuff_handler"
+
+
+# ---------------------------------------------------------------------------
+# ROM_ADDRESS_LIMIT
+# ---------------------------------------------------------------------------
+
+
+class TestRomAddressLimit:
+    def test_constant_value(self):
+        assert ROM_ADDRESS_LIMIT == 0x8000
+
+
+# ---------------------------------------------------------------------------
+# calculate_coverage_pct
+# ---------------------------------------------------------------------------
+
+
+class TestCalculateCoveragePct:
+    def test_zero_total_returns_zero(self):
+        assert calculate_coverage_pct(10, 0) == 0.0
+
+    def test_full_coverage(self):
+        assert calculate_coverage_pct(100, 100) == 100.0
+
+    def test_partial_coverage(self):
+        assert calculate_coverage_pct(50, 200) == 25.0
+
+    def test_returns_float(self):
+        result = calculate_coverage_pct(1, 2)
+        assert isinstance(result, float)

@@ -9,6 +9,7 @@ ANNOTATION_TYPES: frozenset[str] = frozenset({"code", "data", "gfx", "audio", "t
 VARIABLE_TYPES: frozenset[str] = frozenset({"u8", "u16", "bool", "enum"})
 MAX_ADDRESS = 0xFFFF
 MAX_SEARCH_RESULTS = 50
+ROM_ADDRESS_LIMIT = 0x8000
 
 
 def validate_annotation_type(value: str | None) -> None:
@@ -66,3 +67,13 @@ def rank_search_results(results: list[dict], query: str) -> list[dict]:
 
     ranked = sorted(results, key=_rank_key)
     return ranked[:MAX_SEARCH_RESULTS]
+
+
+def calculate_coverage_pct(annotated: int, total_addresses: int) -> float:
+    """Return ROM coverage percentage: annotated / total_addresses * 100.
+
+    Returns 0.0 if *total_addresses* is zero.
+    """
+    if total_addresses == 0:
+        return 0.0
+    return annotated / total_addresses * 100
