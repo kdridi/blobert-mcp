@@ -7,6 +7,7 @@ import time
 
 import pytest
 
+from blobert_mcp.domain.kb_import import ParsedSymbol
 from blobert_mcp.kb.database import KnowledgeBase
 
 # ---------------------------------------------------------------------------
@@ -822,4 +823,90 @@ class TestGetEnum:
     def test_returns_none_for_unknown(self):
         kb = _make_kb()
         assert kb.get_enum("Nonexistent") is None
+        kb.close()
+
+
+# ---------------------------------------------------------------------------
+# import_symbols
+# ---------------------------------------------------------------------------
+
+
+class TestImportSymbols:
+    def test_code_symbol_creates_annotation_and_function(self):
+        kb = _make_kb()
+        symbols = [ParsedSymbol(0x0100, 0, "main", "code")]
+        result = kb.import_symbols(symbols)
+        assert result["imported"] == 1
+        assert kb.get_label(0x0100, bank=0) == "main"
+        info = kb.get_function_info("main")
+        assert info is not None
+        assert info["function"]["name"] == "main"
+        kb.close()
+
+    def test_data_symbol_creates_annotation_only(self):
+        kb = _make_kb()
+        symbols = [ParsedSymbol(0xC000, None, "wram_var", "data")]
+        result = kb.import_symbols(symbols)
+        assert result["imported"] == 1
+        assert kb.get_label(0xC000) == "wram_var"
+        # No function should be created for data symbols
+        info = kb.get_function_info("wram_var")
+        assert info is None
+        kb.close()
+
+    def test_skips_duplicate_label(self):
+        kb = _make_kb()
+        kb.annotate(0x0100, bank=0, label="existing")
+        symbols = [ParsedSymbol(0x0100, 0, "new_label", "code")]
+        result = kb.import_symbols(symbols)
+        assert result["skipped"] == 1
+        assert result["imported"] == 0
+        # Original label preserved
+        assert kb.get_label(0x0100, bank=0) == "existing"
+        kb.close()
+
+    def test_returns_imported_and_skipped_counts(self):
+        kb = _make_kb()
+        kb.annotate(0x0100, bank=0, label="existing")
+        symbols = [
+            ParsedSymbol(0x0100, 0, "dup", "code"),
+            ParsedSymbol(0x0150, 0, "new_func", "code"),
+            ParsedSymbol(0xC000, None, "wram_var", "data"),
+        ]
+        result = kb.import_symbols(symbols)
+        assert result["imported"] == 2
+        assert result["skipped"] == 1
+        kb.close()
+
+    def test_empty_list_returns_zeros(self):
+        kb = _make_kb()
+        result = kb.import_symbols([])
+        assert result == {"imported": 0, "skipped": 0}
+        kb.close()
+
+    def test_multiple_symbols_mixed(self):
+        kb = _make_kb()
+        symbols = [
+            ParsedSymbol(0x0100, 0, "entry", "code"),
+            ParsedSymbol(0x0150, 0, "init", "code"),
+            ParsedSymbol(0xC000, None, "counter", "data"),
+            ParsedSymbol(0xFF80, None, "hram_tmp", "data"),
+        ]
+        result = kb.import_symbols(symbols)
+        assert result["imported"] == 4
+        assert result["skipped"] == 0
+        assert kb.get_label(0x0100, bank=0) == "entry"
+        assert kb.get_label(0xC000) == "counter"
+        kb.close()
+
+    def test_bank_preserved(self):
+        kb = _make_kb()
+        symbols = [
+            ParsedSymbol(0x4000, 1, "bank1_start", "code"),
+            ParsedSymbol(0x4000, 2, "bank2_start", "code"),
+        ]
+        result = kb.import_symbols(symbols)
+        assert result["imported"] == 2
+        assert kb.get_label(0x4000, bank=1) == "bank1_start"
+        assert kb.get_label(0x4000, bank=2) == "bank2_start"
         kb.close()
