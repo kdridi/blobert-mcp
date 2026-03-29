@@ -10,6 +10,7 @@ from blobert_mcp.tools.io_registers import register_io_register_tools
 from blobert_mcp.tools.kb import register_kb_tools
 from blobert_mcp.tools.memory import register_memory_tools
 from blobert_mcp.tools.savestate import register_savestate_tools
+from blobert_mcp.tools.search import register_search_tools
 from blobert_mcp.tools.session import register_session_tools
 from blobert_mcp.tools.static import register_static_tools
 from blobert_mcp.tools.visual import register_visual_tools
@@ -34,6 +35,7 @@ register_input_tools(mcp, session)
 register_savestate_tools(mcp, session)
 register_visual_tools(mcp, session)
 register_io_register_tools(mcp, session)
+register_search_tools(mcp, session)
 
 
 def main() -> None:
