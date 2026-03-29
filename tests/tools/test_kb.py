@@ -12,10 +12,24 @@ from blobert_mcp.tools.kb import register_kb_tools
 # ---------------------------------------------------------------------------
 
 
+class FakeMemory:
+    def __init__(self, rom_size_byte: int = 0) -> None:
+        self._data = bytearray(0x10000)
+        self._data[0x0148] = rom_size_byte
+
+    def __getitem__(self, key):
+        return self._data[key]
+
+
+class FakePyBoy:
+    def __init__(self, rom_size_byte: int = 0) -> None:
+        self.memory = FakeMemory(rom_size_byte)
+
+
 class FakeEmulatorSession:
-    def __init__(self, *, with_kb: bool = False) -> None:
+    def __init__(self, *, with_kb: bool = False, rom_size_byte: int = 0) -> None:
         if with_kb:
-            self.pyboy = object()  # truthy
+            self.pyboy: FakePyBoy | None = FakePyBoy(rom_size_byte)
             self.kb: KnowledgeBase | None = KnowledgeBase(":memory:")
         else:
             self.pyboy = None
@@ -188,3 +202,96 @@ class TestKbSearch:
         tool = _get_tool(_make_mcp(session), "kb_search")
         result = tool(query="entry")
         assert result["count"] == len(result["results"])
+
+
+# ---------------------------------------------------------------------------
+# kb_get_function_info
+# ---------------------------------------------------------------------------
+
+
+class TestKbGetFunctionInfo:
+    def test_no_rom_returns_error(self):
+        session = FakeEmulatorSession()
+        tool = _get_tool(_make_mcp(session), "kb_get_function_info")
+        result = tool(name_or_address="main")
+        assert result["error"] == "NO_ROM_LOADED"
+
+    def test_lookup_by_name(self):
+        session = FakeEmulatorSession(with_kb=True)
+        session.kb.define_function(0x0150, name="main")
+        tool = _get_tool(_make_mcp(session), "kb_get_function_info")
+        result = tool(name_or_address="main")
+        assert "error" not in result
+        assert result["function"]["name"] == "main"
+
+    def test_lookup_by_hex_address(self):
+        session = FakeEmulatorSession(with_kb=True)
+        session.kb.define_function(0x0150, name="main")
+        tool = _get_tool(_make_mcp(session), "kb_get_function_info")
+        result = tool(name_or_address="0x0150")
+        assert result["function"]["name"] == "main"
+
+    def test_lookup_by_decimal_address(self):
+        session = FakeEmulatorSession(with_kb=True)
+        session.kb.define_function(0x0150, name="main")
+        tool = _get_tool(_make_mcp(session), "kb_get_function_info")
+        result = tool(name_or_address="336")
+        assert result["function"]["name"] == "main"
+
+    def test_not_found_returns_error(self):
+        session = FakeEmulatorSession(with_kb=True)
+        tool = _get_tool(_make_mcp(session), "kb_get_function_info")
+        result = tool(name_or_address="nonexistent")
+        assert result["error"] == "NOT_FOUND"
+
+
+# ---------------------------------------------------------------------------
+# kb_stats
+# ---------------------------------------------------------------------------
+
+
+class TestKbStats:
+    def test_no_rom_returns_error(self):
+        session = FakeEmulatorSession()
+        tool = _get_tool(_make_mcp(session), "kb_stats")
+        result = tool()
+        assert result["error"] == "NO_ROM_LOADED"
+
+    def test_returns_all_fields(self):
+        session = FakeEmulatorSession(with_kb=True)
+        tool = _get_tool(_make_mcp(session), "kb_stats")
+        result = tool()
+        expected_keys = {
+            "total_addresses",
+            "annotated",
+            "functions_named",
+            "variables_named",
+            "coverage_pct",
+        }
+        assert set(result.keys()) == expected_keys
+
+    def test_coverage_calculation(self):
+        session = FakeEmulatorSession(with_kb=True)  # rom_size_byte=0 → 2 banks
+        session.kb.annotate(0x0100, label="a")
+        session.kb.annotate(0x0200, label="b")
+        tool = _get_tool(_make_mcp(session), "kb_stats")
+        result = tool()
+        # 2 banks * 0x4000 = 32768 total addresses
+        assert result["total_addresses"] == 32768
+        assert result["annotated"] == 2
+        assert result["coverage_pct"] == 2 / 32768 * 100
+
+    def test_non_rom_excluded(self):
+        session = FakeEmulatorSession(with_kb=True)
+        session.kb.annotate(0x0100, label="rom")
+        session.kb.annotate(0xC000, label="wram")
+        tool = _get_tool(_make_mcp(session), "kb_stats")
+        result = tool()
+        assert result["annotated"] == 1  # only ROM annotation counted
+
+    def test_total_addresses_from_header(self):
+        # rom_size_byte=1 → 4 banks → 4 * 0x4000 = 65536
+        session = FakeEmulatorSession(with_kb=True, rom_size_byte=1)
+        tool = _get_tool(_make_mcp(session), "kb_stats")
+        result = tool()
+        assert result["total_addresses"] == 65536
