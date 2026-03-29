@@ -20,7 +20,8 @@ class EmulatorSession:
     def __init__(self) -> None:
         self.pyboy: PyBoy | None = None
         self.rom_path: str | None = None
-        self.save_states: dict[str, Any] = {}
+        self.save_states: dict[int, dict] = {}
+        self.next_state_id: int = 1
         self.breakpoints: dict[str, Any] = {}
         self.kb: KnowledgeBase | None = None
 
