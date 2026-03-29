@@ -328,7 +328,7 @@ class TestValidateEnumValues:
             validate_enum_values({"  ": 0})
 
     def test_duplicate_numeric_values_raises_valueerror(self):
-        with pytest.raises(ValueError, match="duplicate"):
+        with pytest.raises(ValueError, match="(?i)duplicate"):
             validate_enum_values({"A": 0, "B": 0})
 
 
