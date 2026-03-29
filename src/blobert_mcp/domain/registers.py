@@ -5,6 +5,46 @@ No project imports; stdlib only.
 
 from __future__ import annotations
 
+REGISTERS_8BIT: frozenset[str] = frozenset({"A", "B", "C", "D", "E", "F", "H", "L"})
+REGISTERS_16BIT: frozenset[str] = frozenset({"SP", "PC"})
+ALL_REGISTERS: frozenset[str] = REGISTERS_8BIT | REGISTERS_16BIT
+
+
+def normalize_register_name(name: str) -> str:
+    """Uppercase and strip whitespace."""
+    return name.strip().upper()
+
+
+def validate_register_name(name: str) -> str:
+    """Return normalized name or raise ValueError."""
+    normalized = normalize_register_name(name)
+    if normalized not in ALL_REGISTERS:
+        msg = f"Unknown register: {normalized!r}"
+        raise ValueError(msg)
+    return normalized
+
+
+def get_register_size(register: str) -> int:
+    """Return 8 or 16 for the given register."""
+    name = validate_register_name(register)
+    return 8 if name in REGISTERS_8BIT else 16
+
+
+def validate_register_value(register: str, value: int) -> int:
+    """Check value fits register size. F register masks to 0xF0."""
+    name = validate_register_name(register)
+    size = get_register_size(name)
+    max_val = (1 << size) - 1
+    if value < 0 or value > max_val:
+        msg = (
+            f"Value {value} out of range for "
+            f"{size}-bit register {name} (0x00-0x{max_val:X})"
+        )
+        raise ValueError(msg)
+    if name == "F":
+        return value & 0xF0
+    return value
+
 
 def format_registers(
     a: int,
