@@ -6,6 +6,11 @@ import time
 from io import BytesIO
 
 from blobert_mcp.domain import registers
+from blobert_mcp.domain.memory_diff import MAX_CHANGES, diff_memory
+from blobert_mcp.domain.memory_map import (
+    DEFAULT_DIFF_REGION_NAMES,
+    resolve_regions,
+)
 
 
 def register_savestate_tools(mcp, session) -> None:
@@ -116,3 +121,102 @@ def register_savestate_tools(mcp, session) -> None:
             }
         session.save_states.pop(state_id)
         return {"status": "ok", "state_id": state_id}
+
+    @mcp.tool()
+    def gb_memory_diff(
+        state_id_a: int,
+        state_id_b: int,
+        regions: list[str] | None = None,
+    ) -> dict:
+        """Compare memory between two save states and return changed bytes.
+
+        Loads each state, dumps the requested memory regions, restores the
+        original emulator state, and diffs the two dumps. Returns a list of
+        ``(address, old_value, new_value)`` changes.
+
+        The optional *regions* parameter accepts region names (e.g.
+        ``["WRAM", "HRAM"]``). Prefix matching is supported: ``"WRAM"``
+        matches both WRAM0 and WRAMX. Defaults to WRAM0 + WRAMX + HRAM.
+        """
+        if not session.rom_loaded:
+            return {
+                "error": "NO_ROM_LOADED",
+                "message": "Load a ROM first with gb_load_rom.",
+            }
+        if state_id_a not in session.save_states:
+            return {
+                "error": "NOT_FOUND",
+                "message": f"State {state_id_a} not found.",
+            }
+        if state_id_b not in session.save_states:
+            return {
+                "error": "NOT_FOUND",
+                "message": f"State {state_id_b} not found.",
+            }
+
+        # Resolve regions
+        region_names = list(regions) if regions else list(DEFAULT_DIFF_REGION_NAMES)
+        try:
+            resolved = resolve_regions(region_names)
+        except ValueError as exc:
+            return {"error": "INVALID_PARAMETER", "message": str(exc)}
+
+        # Save current state so we can restore it after diffing
+        tmp_buffer = BytesIO()
+        session.pyboy.save_state(tmp_buffer)
+        try:
+            # Load state_a and dump memory for each region
+            state_a = session.save_states[state_id_a]
+            state_a["buffer"].seek(0)
+            session.pyboy.load_state(state_a["buffer"])
+            dumps_a = {}
+            for region in resolved:
+                raw = session.pyboy.memory[region.start : region.start + region.size]
+                dumps_a[region.name] = bytes(raw)
+
+            # Load state_b and dump memory for each region
+            state_b = session.save_states[state_id_b]
+            state_b["buffer"].seek(0)
+            session.pyboy.load_state(state_b["buffer"])
+            dumps_b = {}
+            for region in resolved:
+                raw = session.pyboy.memory[region.start : region.start + region.size]
+                dumps_b[region.name] = bytes(raw)
+        finally:
+            # Restore original emulator state
+            tmp_buffer.seek(0)
+            session.pyboy.load_state(tmp_buffer)
+
+        # Diff each region
+        all_changes = []
+        for region in resolved:
+            changes = diff_memory(
+                dumps_a[region.name], dumps_b[region.name], region.start
+            )
+            all_changes.extend(changes)
+
+        total = len(all_changes)
+        truncated = total > MAX_CHANGES
+        if truncated:
+            all_changes = all_changes[:MAX_CHANGES]
+
+        formatted = [
+            {
+                "address": f"0x{c.address:04X}",
+                "old": f"0x{c.old:02X}",
+                "new": f"0x{c.new:02X}",
+            }
+            for c in all_changes
+        ]
+
+        result: dict = {
+            "status": "ok",
+            "state_id_a": state_id_a,
+            "state_id_b": state_id_b,
+            "regions_scanned": [r.name for r in resolved],
+            "total": total,
+            "changes": formatted,
+        }
+        if truncated:
+            result["truncated"] = True
+        return result
