@@ -419,6 +419,174 @@ class TestAnnotationCount:
 
 
 # ---------------------------------------------------------------------------
+# get_function_info
+# ---------------------------------------------------------------------------
+
+
+class TestGetFunctionInfo:
+    def test_lookup_by_name(self):
+        kb = _make_kb()
+        kb.define_function(0x0150, name="main", description="Entry point")
+        result = kb.get_function_info("main")
+        assert result is not None
+        assert result["function"]["name"] == "main"
+        assert result["function"]["address"] == 0x0150
+        assert result["function"]["description"] == "Entry point"
+        kb.close()
+
+    def test_lookup_by_address(self):
+        kb = _make_kb()
+        kb.define_function(0x0150, name="main")
+        result = kb.get_function_info(0x0150)
+        assert result is not None
+        assert result["function"]["name"] == "main"
+        kb.close()
+
+    def test_not_found_returns_none(self):
+        kb = _make_kb()
+        assert kb.get_function_info("nonexistent") is None
+        assert kb.get_function_info(0x9999) is None
+        kb.close()
+
+    def test_includes_annotations_in_range(self):
+        kb = _make_kb()
+        kb.define_function(0x0100, end_address=0x0120, name="handler")
+        kb.annotate(0x0110, label="mid_handler", comment="Middle of handler")
+        result = kb.get_function_info("handler")
+        assert len(result["annotations"]) == 1
+        assert result["annotations"][0]["address"] == 0x0110
+        kb.close()
+
+    def test_excludes_annotations_outside_range(self):
+        kb = _make_kb()
+        kb.define_function(0x0100, end_address=0x0120, name="handler")
+        kb.annotate(0x0200, label="elsewhere")
+        result = kb.get_function_info("handler")
+        assert len(result["annotations"]) == 0
+        kb.close()
+
+    def test_includes_variables_in_range(self):
+        kb = _make_kb()
+        kb.define_function(0x0100, end_address=0x0120, name="handler")
+        kb.define_variable(0x0110, name="local_var", type="u8")
+        result = kb.get_function_info("handler")
+        assert len(result["variables"]) == 1
+        assert result["variables"][0]["name"] == "local_var"
+        kb.close()
+
+    def test_no_end_address_returns_empty_lists(self):
+        kb = _make_kb()
+        kb.define_function(0x0150, name="stub")
+        result = kb.get_function_info("stub")
+        assert result["annotations"] == []
+        assert result["variables"] == []
+        kb.close()
+
+    def test_cross_references_placeholder(self):
+        kb = _make_kb()
+        kb.define_function(0x0150, name="func")
+        result = kb.get_function_info("func")
+        assert result["cross_references"] == []
+        kb.close()
+
+    def test_params_deserialized(self):
+        kb = _make_kb()
+        params = ["a: u8", "b: u16"]
+        kb.define_function(0x0150, name="func", params=params)
+        result = kb.get_function_info("func")
+        assert result["function"]["params"] == params
+        kb.close()
+
+    def test_lookup_with_bank(self):
+        kb = _make_kb()
+        kb.define_function(0x4000, bank=1, name="bank1_func")
+        result = kb.get_function_info(0x4000)
+        assert result is not None
+        assert result["function"]["bank"] == 1
+        kb.close()
+
+
+# ---------------------------------------------------------------------------
+# rom_annotation_count
+# ---------------------------------------------------------------------------
+
+
+class TestRomAnnotationCount:
+    def test_zero_initially(self):
+        kb = _make_kb()
+        assert kb.rom_annotation_count() == 0
+        kb.close()
+
+    def test_counts_rom_annotations(self):
+        kb = _make_kb()
+        kb.annotate(0x0100, label="a")
+        kb.annotate(0x4000, label="b")
+        assert kb.rom_annotation_count() == 2
+        kb.close()
+
+    def test_excludes_non_rom(self):
+        kb = _make_kb()
+        kb.annotate(0x8000, label="vram")
+        assert kb.rom_annotation_count() == 0
+        kb.close()
+
+    def test_excludes_ram(self):
+        kb = _make_kb()
+        kb.annotate(0xC000, label="wram")
+        assert kb.rom_annotation_count() == 0
+        kb.close()
+
+    def test_mixed_rom_and_non_rom(self):
+        kb = _make_kb()
+        kb.annotate(0x0100, label="rom1")
+        kb.annotate(0x0200, label="rom2")
+        kb.annotate(0x4000, label="rom3")
+        kb.annotate(0x8000, label="vram")
+        kb.annotate(0xC000, label="wram")
+        assert kb.rom_annotation_count() == 3
+        kb.close()
+
+
+# ---------------------------------------------------------------------------
+# function_count
+# ---------------------------------------------------------------------------
+
+
+class TestFunctionCount:
+    def test_zero_initially(self):
+        kb = _make_kb()
+        assert kb.function_count() == 0
+        kb.close()
+
+    def test_counts_all(self):
+        kb = _make_kb()
+        kb.define_function(0x0100, name="f1")
+        kb.define_function(0x0200, name="f2")
+        kb.define_function(0x0300, name="f3")
+        assert kb.function_count() == 3
+        kb.close()
+
+
+# ---------------------------------------------------------------------------
+# variable_count
+# ---------------------------------------------------------------------------
+
+
+class TestVariableCount:
+    def test_zero_initially(self):
+        kb = _make_kb()
+        assert kb.variable_count() == 0
+        kb.close()
+
+    def test_counts_all(self):
+        kb = _make_kb()
+        kb.define_variable(0xC000, name="v1", type="u8")
+        kb.define_variable(0xC001, name="v2", type="u16")
+        assert kb.variable_count() == 2
+        kb.close()
+
+
+# ---------------------------------------------------------------------------
 # close
 # ---------------------------------------------------------------------------
 

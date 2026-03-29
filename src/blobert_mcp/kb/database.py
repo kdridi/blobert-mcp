@@ -7,6 +7,7 @@ import sqlite3
 from pathlib import Path
 
 from blobert_mcp.domain.kb import (
+    ROM_ADDRESS_LIMIT,
     rank_search_results,
     validate_address,
     validate_annotation_type,
@@ -348,6 +349,105 @@ class KnowledgeBase:
             "(SELECT COUNT(*) FROM variables)"
         )
         return cur.fetchone()[0]
+
+    def rom_annotation_count(self) -> int:
+        """Count annotations at ROM addresses (address < 0x8000)."""
+        cur = self._conn.execute(
+            "SELECT COUNT(*) FROM annotations WHERE address < ?",
+            (ROM_ADDRESS_LIMIT,),
+        )
+        return cur.fetchone()[0]
+
+    def function_count(self) -> int:
+        """Count all function definitions."""
+        cur = self._conn.execute("SELECT COUNT(*) FROM functions")
+        return cur.fetchone()[0]
+
+    def variable_count(self) -> int:
+        """Count all variable definitions."""
+        cur = self._conn.execute("SELECT COUNT(*) FROM variables")
+        return cur.fetchone()[0]
+
+    # ------------------------------------------------------------------
+    # Function info
+    # ------------------------------------------------------------------
+
+    def get_function_info(self, name_or_address: str | int) -> dict | None:
+        """Lookup a function by name or address and return full info.
+
+        Returns a dict with keys: function, annotations, variables,
+        cross_references.  Returns None if not found.
+        """
+        if isinstance(name_or_address, int):
+            row = self._conn.execute(
+                "SELECT id, address, end_address, bank, name, params,"
+                " description, returns FROM functions WHERE address = ?",
+                (name_or_address,),
+            ).fetchone()
+        else:
+            # Try parsing as address first (hex or decimal)
+            try:
+                addr = int(name_or_address, 0)
+                row = self._conn.execute(
+                    "SELECT id, address, end_address, bank, name, params,"
+                    " description, returns FROM functions WHERE address = ?",
+                    (addr,),
+                ).fetchone()
+            except ValueError:
+                row = None
+            if row is None:
+                row = self._conn.execute(
+                    "SELECT id, address, end_address, bank, name, params,"
+                    " description, returns FROM functions WHERE name = ?",
+                    (name_or_address,),
+                ).fetchone()
+
+        if row is None:
+            return None
+
+        func_id, address, end_address, bank, name, params_json, desc, returns = row
+        bank_val = bank if bank != _SENTINEL_BANK else None
+        params = json.loads(params_json) if params_json is not None else None
+
+        func_dict = {
+            "id": func_id,
+            "address": address,
+            "end_address": end_address,
+            "bank": bank_val,
+            "name": name,
+            "params": params,
+            "description": desc,
+            "returns": returns,
+        }
+
+        annotations: list[dict] = []
+        variables: list[dict] = []
+
+        if end_address is not None:
+            cur = self._conn.execute(
+                "SELECT id, address, bank, label, type, comment"
+                " FROM annotations"
+                " WHERE address >= ? AND address <= ? AND bank = ?",
+                (address, end_address, bank),
+            )
+            for arow in cur.fetchall():
+                annotations.append(self._annotation_row_to_dict(arow))
+
+            cur = self._conn.execute(
+                "SELECT id, address, name, type, description"
+                " FROM variables"
+                " WHERE address >= ? AND address <= ?",
+                (address, end_address),
+            )
+            for vrow in cur.fetchall():
+                variables.append(self._variable_row_to_dict(vrow))
+
+        return {
+            "function": func_dict,
+            "annotations": annotations,
+            "variables": variables,
+            "cross_references": [],
+        }
 
     # ------------------------------------------------------------------
     # Lifecycle
