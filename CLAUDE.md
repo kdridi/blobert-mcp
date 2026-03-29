@@ -25,6 +25,7 @@ tickets/
 ├── TEMPLATE.md        # Canonical ticket template — copy this for new tickets
 ├── backlog/           # Ticket ideas — rough drafts, not yet refined
 ├── planned/           # Refined tickets — fully specified, ready to activate
+│   └── roadmap.md     # Execution order for planned tickets (authoritative sequence)
 ├── ongoing/           # The one active ticket (max 1)
 ├── completed/         # Successfully finished tickets
 └── rejected/          # Cancelled or invalid tickets
@@ -67,13 +68,16 @@ backlog → planned → ongoing → completed
   - Use `git mv tickets/backlog/BLO-XXX.md tickets/planned/BLO-XXX.md` — always `git mv`, never delete+recreate
   - Update frontmatter: `status: planned`, `updated: <now>`
   - Add log entry: `- <now>: Ticket planned.`
+  - Add the ticket to `tickets/planned/roadmap.md` in the correct position (respecting dependencies)
 
 **3. Activate** — Before moving to `ongoing/`:
+  - Consult `tickets/planned/roadmap.md` — activate the next ticket in sequence unless there is a justified reason to skip
   - Verify `tickets/ongoing/` is empty (no other active ticket)
   - Verify all dependencies are in `tickets/completed/`
   - Use `git mv tickets/planned/BLO-XXX.md tickets/ongoing/BLO-XXX.md` — always `git mv`, never delete+recreate
   - Update frontmatter: `status: ongoing`, `updated: <now>`
   - Add log entry: `- <now>: Ticket activated.`
+  - Remove the ticket's row from `tickets/planned/roadmap.md`
 
 **4. Work** — While the ticket is active:
   - All code changes must fall within the ticket's scope
