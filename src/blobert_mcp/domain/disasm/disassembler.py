@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 from blobert_mcp.domain.disasm.decoder import Instruction, decode_instruction
 
@@ -54,7 +54,8 @@ def disassemble_function(
     - RET (0xC9) or RETI (0xD9): unconditional return
     - JP nn (0xC3) that jumps outside the traced range [entry_point, current_address]
 
-    Safety cap: 1024 instructions. Returns {"instructions": list[Instruction], "size_bytes": int}.
+    Safety cap: 1024 instructions.
+    Returns {"instructions": list[Instruction], "size_bytes": int}.
     """
     instructions: list[Instruction] = []
     current = entry_point

@@ -13,6 +13,7 @@ from blobert_mcp.domain.disasm.disassembler import (
 
 def _reader(data: bytes):
     """Build a memory_reader from a flat bytes object."""
+
     def read(address: int, length: int) -> bytes:
         # Pad with 0x00 (NOP) if reading beyond the data
         result = bytearray(length)
@@ -20,12 +21,14 @@ def _reader(data: bytes):
             idx = address + i
             result[i] = data[idx] if idx < len(data) else 0x00
         return bytes(result)
+
     return read
 
 
 # ---------------------------------------------------------------------------
 # disassemble_range
 # ---------------------------------------------------------------------------
+
 
 class TestDisassembleRange:
     def test_three_nops_by_length(self):
@@ -39,7 +42,7 @@ class TestDisassembleRange:
 
     def test_end_address_stops_before_next_instruction(self):
         # NOP NOP LD B,0xFF — stop before the LD
-        reader = _reader(b"\x00\x00\x06\xFF")
+        reader = _reader(b"\x00\x00\x06\xff")
         instrs = disassemble_range(reader, 0x0100, end_address=0x0102)
         assert len(instrs) == 2
         assert all(i.mnemonic == "NOP" for i in instrs)
@@ -71,7 +74,7 @@ class TestDisassembleRange:
 
     def test_address_field_correct_for_each_instruction(self):
         # LD B,0xFF (2 bytes) at 0x0000, then NOP at 0x0002
-        reader = _reader(b"\x06\xFF\x00")
+        reader = _reader(b"\x06\xff\x00")
         instrs = disassemble_range(reader, 0x0000, length=3)
         assert instrs[0].address == 0x0000
         assert instrs[1].address == 0x0002
@@ -81,19 +84,20 @@ class TestDisassembleRange:
 # disassemble_function
 # ---------------------------------------------------------------------------
 
+
 class TestDisassembleFunction:
     def test_stops_at_ret(self):
         # NOP, RET
-        reader = _reader(b"\x00\xC9")
+        reader = _reader(b"\x00\xc9")
         result = disassemble_function(reader, 0x0000)
         assert len(result["instructions"]) == 2
         assert result["instructions"][-1].mnemonic == "RET"
-        assert result["instructions"][-1].raw_bytes == b"\xC9"
+        assert result["instructions"][-1].raw_bytes == b"\xc9"
         assert result["size_bytes"] == 2
 
     def test_stops_at_reti(self):
         # NOP, RETI
-        reader = _reader(b"\x00\xD9")
+        reader = _reader(b"\x00\xd9")
         result = disassemble_function(reader, 0x0000)
         assert len(result["instructions"]) == 2
         assert result["instructions"][-1].mnemonic == "RETI"
@@ -101,7 +105,7 @@ class TestDisassembleFunction:
 
     def test_stops_at_unconditional_jp_outside_range(self):
         # JP 0x0200 — jumps well outside entry_point=0x0000
-        reader = _reader(b"\xC3\x00\x02")
+        reader = _reader(b"\xc3\x00\x02")
         result = disassemble_function(reader, 0x0000)
         assert len(result["instructions"]) == 1
         assert result["instructions"][0].mnemonic == "JP"
@@ -109,16 +113,16 @@ class TestDisassembleFunction:
 
     def test_unconditional_jp_inside_range_does_not_stop(self):
         # JP back to entry_point (0x0000) — a loop; hits 1024-instruction cap
-        reader = _reader(b"\xC3\x00\x00")
+        reader = _reader(b"\xc3\x00\x00")
         result = disassemble_function(reader, 0x0000)
         assert len(result["instructions"]) == 1024
 
     def test_conditional_ret_does_not_stop(self):
         # RET NZ (0xC0), NOP, RET — conditional RET must NOT stop tracing
-        reader = _reader(b"\xC0\x00\xC9")
+        reader = _reader(b"\xc0\x00\xc9")
         result = disassemble_function(reader, 0x0000)
         assert len(result["instructions"]) == 3
-        assert result["instructions"][0].raw_bytes == b"\xC0"
+        assert result["instructions"][0].raw_bytes == b"\xc0"
         assert result["instructions"][-1].mnemonic == "RET"
 
     def test_1024_instruction_cap(self):
@@ -128,12 +132,12 @@ class TestDisassembleFunction:
 
     def test_size_bytes_reflects_total_decoded_bytes(self):
         # LD BC,0x1234 (3 bytes) + RET (1 byte) = 4
-        reader = _reader(b"\x01\x34\x12\xC9")
+        reader = _reader(b"\x01\x34\x12\xc9")
         result = disassemble_function(reader, 0x0000)
         assert result["size_bytes"] == 4
 
     def test_returns_dict_with_required_keys(self):
-        reader = _reader(b"\xC9")
+        reader = _reader(b"\xc9")
         result = disassemble_function(reader, 0x0000)
         assert "instructions" in result
         assert "size_bytes" in result
@@ -142,6 +146,7 @@ class TestDisassembleFunction:
 # ---------------------------------------------------------------------------
 # disassemble_at_pc
 # ---------------------------------------------------------------------------
+
 
 class TestDisassembleAtPc:
     def test_basic_pc_instruction_included(self):
@@ -159,7 +164,7 @@ class TestDisassembleAtPc:
 
     def test_before_with_aligned_multibyte(self):
         # CALL 0x1000 (3 bytes: 0xCD 0x00 0x10) at 0x0000, then NOP at 0x0003 (pc)
-        reader = _reader(b"\xCD\x00\x10" + b"\x00" * 10)
+        reader = _reader(b"\xcd\x00\x10" + b"\x00" * 10)
         instrs = disassemble_at_pc(reader, pc=0x0003, before=1, after=0)
         addresses = [i.address for i in instrs]
         assert 0x0000 in addresses  # pre-pc instruction found by backward scan

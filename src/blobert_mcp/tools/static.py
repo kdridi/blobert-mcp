@@ -92,10 +92,12 @@ def register_static_tools(mcp, session) -> None:
         result = []
         for v in vectors.get_vectors():
             first_bytes = bytes(session.pyboy.memory[v.address : v.address + 2])
-            result.append({
-                "address": v.address,
-                "label": v.label,
-                "type": v.type,
-                "first_bytes": " ".join(f"{b:02X}" for b in first_bytes),
-            })
+            result.append(
+                {
+                    "address": v.address,
+                    "label": v.label,
+                    "type": v.type,
+                    "first_bytes": " ".join(f"{b:02X}" for b in first_bytes),
+                }
+            )
         return {"vectors": result}

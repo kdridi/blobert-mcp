@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from blobert_mcp.domain.disasm.opcodes import BASE_OPCODES, CB_OPCODES
 
@@ -98,7 +98,7 @@ def decode_instruction(data: bytes, address: int) -> Instruction:
 
     return Instruction(
         address=address,
-        raw_bytes=bytes(data[0:entry.size]),
+        raw_bytes=bytes(data[0 : entry.size]),
         mnemonic=entry.mnemonic,
         operands=operands,
         size=entry.size,

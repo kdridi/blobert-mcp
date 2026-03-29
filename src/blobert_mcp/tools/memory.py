@@ -76,7 +76,8 @@ def register_memory_tools(mcp, session) -> None:
         """Return MBC type, total bank count, and current ROM bank.
 
         Reads cartridge type (0x0147) and ROM size (0x0148) from the header,
-        delegates to domain/bank_info for interpretation. Returns error if no ROM loaded.
+        delegates to domain/bank_info for interpretation.
+        Returns error if no ROM loaded.
         """
         if not session.rom_loaded:
             return {

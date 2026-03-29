@@ -1,19 +1,17 @@
-"""Integration tests for tools/disasm.py — gb_disassemble_range, gb_disassemble_function,
-gb_disassemble_at_pc."""
+"""Integration tests for disassembly MCP tools."""
 
 from __future__ import annotations
 
 from typing import Any
 
-import pytest
 from mcp.server.fastmcp import FastMCP
 
 from blobert_mcp.tools.disasm import register_disasm_tools
 
-
 # ---------------------------------------------------------------------------
 # Fake infrastructure (mirrors test_tools.py pattern)
 # ---------------------------------------------------------------------------
+
 
 class FakeRegisterFile:
     PC = 0x0100
@@ -69,6 +67,7 @@ def _get_tool(mcp: FastMCP, name: str):
 # ---------------------------------------------------------------------------
 # gb_disassemble_range
 # ---------------------------------------------------------------------------
+
 
 class TestGbDisassembleRange:
     def test_no_rom_returns_error(self):
@@ -134,6 +133,7 @@ class TestGbDisassembleRange:
 # gb_disassemble_function
 # ---------------------------------------------------------------------------
 
+
 class TestGbDisassembleFunction:
     def test_no_rom_returns_error(self):
         session = FakeEmulatorSession()
@@ -170,6 +170,7 @@ class TestGbDisassembleFunction:
 # ---------------------------------------------------------------------------
 # gb_disassemble_at_pc
 # ---------------------------------------------------------------------------
+
 
 class TestGbDisassembleAtPc:
     def test_no_rom_returns_error(self):

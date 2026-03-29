@@ -201,6 +201,13 @@ backlog → ongoing → completed
 - Use `uv` for package management
 - Follow existing documentation style (see `docs/` for reference)
 
+### Linting & Pre-commit
+- The repo uses **ruff** for linting and formatting (`pyproject.toml` → `[tool.ruff]`).
+- A **pre-commit hook** is configured in `.pre-commit-config.yaml` (ruff lint + format, trailing whitespace, etc.).
+- After cloning, run `make setup` to install the hook (runs `uv run pre-commit install`).
+- **Before committing, always run `make check`** (lint + format check + tests) to catch issues locally.
+- CI runs the same ruff checks — if the pre-commit hook is installed, CI lint failures are prevented.
+
 ---
 
 ## Architecture

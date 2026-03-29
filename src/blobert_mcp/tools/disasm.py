@@ -1,4 +1,7 @@
-"""Disassembly MCP tools — gb_disassemble_range, gb_disassemble_function, gb_disassemble_at_pc."""
+"""Disassembly MCP tools.
+
+gb_disassemble_range, gb_disassemble_function, gb_disassemble_at_pc.
+"""
 
 from __future__ import annotations
 

@@ -20,6 +20,7 @@ from blobert_mcp.tools.static import register_static_tools
 # Minimal synthetic ROM builder
 # ---------------------------------------------------------------------------
 
+
 def _make_rom(title: bytes = b"TESTGAME") -> bytes:
     """Build a minimal valid Game Boy ROM (0x8000 bytes).
 
@@ -62,6 +63,7 @@ def _make_rom(title: bytes = b"TESTGAME") -> bytes:
 # Fake infrastructure
 # ---------------------------------------------------------------------------
 
+
 class FakeRegisterFile:
     PC = 0x0100
 
@@ -71,7 +73,7 @@ class FakeMemory:
 
     def __init__(self, data: bytes) -> None:
         self._data = bytearray(0x10000)
-        self._data[:len(data)] = data
+        self._data[: len(data)] = data
 
     def __getitem__(self, key: Any) -> Any:
         if isinstance(key, slice):
@@ -135,6 +137,7 @@ class FakeEmulatorSession:
 # Helpers to build registered tools
 # ---------------------------------------------------------------------------
 
+
 def _make_mcp_with_session(session: FakeEmulatorSession) -> FastMCP:
     mcp = FastMCP("test")
     register_session_tools(mcp, session)
@@ -153,6 +156,7 @@ def _get_tool(mcp: FastMCP, name: str):
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture()
 def rom_file(tmp_path: Path) -> Path:
@@ -177,6 +181,7 @@ def session_with_rom(rom_file: Path) -> FakeEmulatorSession:
 # ---------------------------------------------------------------------------
 # gb_load_rom
 # ---------------------------------------------------------------------------
+
 
 class TestGbLoadRom:
     def test_file_not_found(self, session_no_rom: FakeEmulatorSession) -> None:
@@ -209,6 +214,7 @@ class TestGbLoadRom:
 # ---------------------------------------------------------------------------
 # get_session_info
 # ---------------------------------------------------------------------------
+
 
 class TestGetSessionInfo:
     def test_no_rom(self, session_no_rom: FakeEmulatorSession) -> None:
@@ -245,6 +251,7 @@ class TestGetSessionInfo:
 # gb_reset
 # ---------------------------------------------------------------------------
 
+
 class TestGbReset:
     def test_no_rom(self, session_no_rom: FakeEmulatorSession) -> None:
         mcp = _make_mcp_with_session(session_no_rom)
@@ -274,6 +281,7 @@ class TestGbReset:
 # get_rom_header
 # ---------------------------------------------------------------------------
 
+
 class TestGetRomHeader:
     def test_no_rom(self, session_no_rom: FakeEmulatorSession) -> None:
         mcp = _make_mcp_with_session(session_no_rom)
@@ -285,9 +293,17 @@ class TestGetRomHeader:
         mcp = _make_mcp_with_session(session_with_rom)
         tool = _get_tool(mcp, "get_rom_header")
         result = tool()
-        for key in ("title", "cgb_flag", "sgb_flag", "cartridge_type",
-                    "rom_size", "ram_size", "old_licensee",
-                    "header_checksum", "global_checksum"):
+        for key in (
+            "title",
+            "cgb_flag",
+            "sgb_flag",
+            "cartridge_type",
+            "rom_size",
+            "ram_size",
+            "old_licensee",
+            "header_checksum",
+            "global_checksum",
+        ):
             assert key in result, f"Missing key: {key}"
 
     def test_with_rom_title(self, session_with_rom: FakeEmulatorSession) -> None:
@@ -308,6 +324,7 @@ class TestGetRomHeader:
 # ---------------------------------------------------------------------------
 # get_memory_map
 # ---------------------------------------------------------------------------
+
 
 class TestGetMemoryMap:
     def test_no_rom_works(self, session_no_rom: FakeEmulatorSession) -> None:
@@ -342,6 +359,7 @@ class TestGetMemoryMap:
 # ---------------------------------------------------------------------------
 # read_rom_bytes
 # ---------------------------------------------------------------------------
+
 
 class TestReadRomBytes:
     def test_length_zero(self, session_with_rom: FakeEmulatorSession) -> None:
@@ -404,6 +422,7 @@ class TestReadRomBytes:
 # get_vector_table
 # ---------------------------------------------------------------------------
 
+
 class TestGetVectorTable:
     def test_no_rom(self, session_no_rom: FakeEmulatorSession) -> None:
         mcp = _make_mcp_with_session(session_no_rom)
@@ -457,6 +476,7 @@ class TestGetVectorTable:
 # ---------------------------------------------------------------------------
 # gb_read_memory
 # ---------------------------------------------------------------------------
+
 
 class TestGbReadMemory:
     def test_length_zero(self, session_with_rom: FakeEmulatorSession) -> None:
@@ -516,6 +536,7 @@ class TestGbReadMemory:
 # gb_read_banked
 # ---------------------------------------------------------------------------
 
+
 class TestGbReadBanked:
     def test_length_zero(self, session_with_rom: FakeEmulatorSession) -> None:
         mcp = _make_mcp_with_session(session_with_rom)
@@ -562,6 +583,7 @@ class TestGbReadBanked:
 # gb_get_bank_info
 # ---------------------------------------------------------------------------
 
+
 class TestGbGetBankInfo:
     def test_no_rom(self, session_no_rom: FakeEmulatorSession) -> None:
         mcp = _make_mcp_with_session(session_no_rom)
@@ -573,8 +595,14 @@ class TestGbGetBankInfo:
         mcp = _make_mcp_with_session(session_with_rom)
         tool = _get_tool(mcp, "gb_get_bank_info")
         result = tool()
-        for key in ("mbc_type", "mbc_name", "total_banks", "current_rom_bank",
-                    "has_ram", "has_battery"):
+        for key in (
+            "mbc_type",
+            "mbc_name",
+            "total_banks",
+            "current_rom_bank",
+            "has_ram",
+            "has_battery",
+        ):
             assert key in result, f"Missing key: {key}"
 
     def test_total_banks(self, session_with_rom: FakeEmulatorSession) -> None:
@@ -611,6 +639,7 @@ class TestGbGetBankInfo:
 # gb_get_interrupt_status
 # ---------------------------------------------------------------------------
 
+
 class TestGbGetInterruptStatus:
     def test_no_rom(self, session_no_rom: FakeEmulatorSession) -> None:
         mcp = _make_mcp_with_session(session_no_rom)
@@ -641,7 +670,11 @@ class TestGbGetInterruptStatus:
         tool = _get_tool(mcp, "gb_get_interrupt_status")
         result = tool()
         assert set(result["interrupts"].keys()) == {
-            "vblank", "stat", "timer", "serial", "joypad"
+            "vblank",
+            "stat",
+            "timer",
+            "serial",
+            "joypad",
         }
 
     def test_flag_structure(self, session_with_rom: FakeEmulatorSession) -> None:
