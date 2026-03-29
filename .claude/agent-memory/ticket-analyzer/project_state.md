@@ -36,8 +36,10 @@ BLO-034 (completed): Byte pattern search & string detection — find_byte_patter
 
 BLO-038 (completed): KB struct and enum definitions — 3 MCP tools (kb_define_struct, kb_apply_struct, kb_define_enum). Domain: STRUCT_FIELD_TYPES, validate_struct_field_type, validate_struct_fields, validate_enum_values, calculate_struct_total_size, decode_struct_fields. KB: 4 new tables (structs, struct_fields, enums, enum_values), define_struct(), define_enum(), get_struct(), get_enum(). Structs/enums reject duplicates (no upsert). 903 total tests.
 
-Planned tickets (in execution order): BLO-040, BLO-039, BLO-027, BLO-029, BLO-037, BLO-031, BLO-033, BLO-035, BLO-036, BLO-053, BLO-056, BLO-043, BLO-058.
+BLO-040 (completed): KB symbol import — kb_import_symbols tool. Domain: kb_import.py (ParsedSymbol, ParseResult, classify_address, validate_format, parse_sym, parse_pokered, detect_format). KB: import_symbols() method. Supports RGBDS .sym and pokered formats with auto-detection. 65 new tests. 968 total tests. D-021: file I/O in tool layer, domain stays pure.
+
+Planned tickets (in execution order): BLO-039, BLO-027, BLO-029, BLO-037, BLO-031, BLO-033, BLO-035, BLO-036, BLO-053, BLO-056, BLO-043, BLO-058.
 
 Remaining backlog (27 tickets): BLO-042, BLO-044, BLO-045, BLO-046, BLO-047, BLO-048, BLO-049, BLO-050, BLO-051, BLO-052, BLO-054, BLO-055, BLO-057, BLO-059, BLO-060, BLO-061, BLO-062, BLO-063, BLO-064, BLO-065, BLO-066, BLO-067, BLO-068, BLO-069, BLO-070, BLO-071, BLO-072.
 
-**How to apply:** All P0 tools are complete. Next ticket to activate: BLO-040 (KB symbol import). Consult `tickets/planned/roadmap.md` for the full sequence. Ticket lifecycle: backlog → planned → ongoing → completed/rejected.
+**How to apply:** All P0 tools are complete. Next ticket to activate: BLO-039 (KB export multi-format). Consult `tickets/planned/roadmap.md` for the full sequence. Ticket lifecycle: backlog → planned → ongoing → completed/rejected.

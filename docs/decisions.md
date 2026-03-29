@@ -374,3 +374,23 @@ The chosen ranges cover the most common subset seen across
 popular Game Boy titles. Rejected: no default (too restrictive —
 gb_custom would be useless without a table), per-game tables
 (scope creep — can be added later as KB extension).
+
+### D-021: Symbol import — file I/O in tool layer, domain stays pure
+**Date:** 2026-03-30 | **Ticket:** BLO-040
+
+**Context:** `kb_import_symbols` reads external `.sym` files from
+disk and parses their content into KB entries. The domain layer
+(`domain/kb_import.py`) must remain pure (no I/O, no project
+imports).
+
+**Decision:** The tool handler reads the file via
+`Path(file_path).read_text()` and passes the content string to
+domain parser functions (`parse_sym`, `parse_pokered`). File
+errors (`FileNotFoundError`, `OSError`) are caught in the tool
+layer and returned as structured error dicts.
+
+**Why:** Keeps domain functions pure and testable with synthetic
+strings — no filesystem mocking needed. The tool layer is the
+natural boundary for I/O. Rejected: reading in domain (violates
+isolation), reading in KB layer (KB handles persistence, not
+external file I/O).
