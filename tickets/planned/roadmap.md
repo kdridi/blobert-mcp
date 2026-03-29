@@ -8,7 +8,6 @@ When a ticket is moved out of `planned/` (to `ongoing/` or back to `backlog/`), 
 
 | # | Ticket | Title | Size | Priority | Dependencies |
 |---|--------|-------|------|----------|--------------|
-| 7 | BLO-038 | KB struct and enum definitions | M | P1 | BLO-005 ✅ |
 | 8 | BLO-040 | KB symbol import | M | P1 | BLO-005 ✅ |
 | 9 | BLO-039 | KB export multi-format | M | P1 | BLO-005 ✅ |
 | 10 | BLO-027 | Breakpoint system | M | P1 | BLO-021 ✅ |
