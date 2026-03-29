@@ -499,3 +499,77 @@ class TestKbDefineEnum:
         tool = _get_tool(_make_mcp(session), "kb_define_enum")
         result = tool(name="Direction", values={"UP": 0}, comment="D-pad")
         assert "enum_id" in result
+
+
+# ---------------------------------------------------------------------------
+# kb_import_symbols
+# ---------------------------------------------------------------------------
+
+
+class TestKbImportSymbols:
+    def test_no_rom_returns_error(self):
+        session = FakeEmulatorSession()
+        tool = _get_tool(_make_mcp(session), "kb_import_symbols")
+        result = tool(file_path="/nonexistent.sym")
+        assert result["error"] == "NO_ROM_LOADED"
+
+    def test_file_not_found_returns_error(self, tmp_path):
+        session = FakeEmulatorSession(with_kb=True)
+        tool = _get_tool(_make_mcp(session), "kb_import_symbols")
+        result = tool(file_path=str(tmp_path / "missing.sym"))
+        assert result["error"] == "FILE_NOT_FOUND"
+
+    def test_invalid_format_returns_error(self, tmp_path):
+        sym_file = tmp_path / "test.sym"
+        sym_file.write_text("00:0100 main\n")
+        session = FakeEmulatorSession(with_kb=True)
+        tool = _get_tool(_make_mcp(session), "kb_import_symbols")
+        result = tool(file_path=str(sym_file), format="invalid")
+        assert result["error"] == "INVALID_PARAMETER"
+
+    def test_happy_path_sym_format(self, tmp_path):
+        sym_file = tmp_path / "test.sym"
+        sym_file.write_text("00:0100 main\n00:0150 init\n")
+        session = FakeEmulatorSession(with_kb=True)
+        tool = _get_tool(_make_mcp(session), "kb_import_symbols")
+        result = tool(file_path=str(sym_file), format="sym")
+        assert result["imported"] == 2
+        assert result["skipped"] == 0
+        assert result["errors"] == 0
+
+    def test_happy_path_auto_format(self, tmp_path):
+        sym_file = tmp_path / "test.sym"
+        sym_file.write_text("00:0100 main\n00:0150 init\n")
+        session = FakeEmulatorSession(with_kb=True)
+        tool = _get_tool(_make_mcp(session), "kb_import_symbols")
+        result = tool(file_path=str(sym_file))
+        assert result["imported"] == 2
+
+    def test_pokered_format(self, tmp_path):
+        sym_file = tmp_path / "test.sym"
+        sym_file.write_text("00:0100 VBlank.handler\n00:0150 Timer.tick\n")
+        session = FakeEmulatorSession(with_kb=True)
+        tool = _get_tool(_make_mcp(session), "kb_import_symbols")
+        result = tool(file_path=str(sym_file), format="pokered")
+        assert result["imported"] == 2
+
+    def test_returns_imported_skipped_errors(self, tmp_path):
+        sym_file = tmp_path / "test.sym"
+        sym_file.write_text("00:0100 main\nbad line\n00:0150 init\n")
+        session = FakeEmulatorSession(with_kb=True)
+        tool = _get_tool(_make_mcp(session), "kb_import_symbols")
+        result = tool(file_path=str(sym_file), format="sym")
+        assert result["imported"] == 2
+        assert result["skipped"] == 0
+        assert result["errors"] == 1
+
+    def test_duplicates_skipped(self, tmp_path):
+        sym_file = tmp_path / "test.sym"
+        sym_file.write_text("00:0100 main\n00:0150 init\n")
+        session = FakeEmulatorSession(with_kb=True)
+        # Pre-populate an annotation
+        session.kb.annotate(0x0100, bank=0, label="existing")
+        tool = _get_tool(_make_mcp(session), "kb_import_symbols")
+        result = tool(file_path=str(sym_file), format="sym")
+        assert result["imported"] == 1
+        assert result["skipped"] == 1
