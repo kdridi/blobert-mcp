@@ -1,13 +1,22 @@
 """Knowledge base MCP tools: annotate, define_function, define_variable, search,
-get_function_info, stats, define_struct, apply_struct, define_enum."""
+get_function_info, stats, define_struct, apply_struct, define_enum,
+import_symbols."""
 
 from __future__ import annotations
+
+from pathlib import Path
 
 from blobert_mcp.domain.bank_info import calculate_bank_count
 from blobert_mcp.domain.kb import (
     calculate_coverage_pct,
     decode_struct_fields,
     validate_address,
+)
+from blobert_mcp.domain.kb_import import (
+    detect_format,
+    parse_pokered,
+    parse_sym,
+    validate_format,
 )
 
 
@@ -266,3 +275,48 @@ def register_kb_tools(mcp, session) -> None:
         except ValueError as e:
             return {"error": "INVALID_PARAMETER", "message": str(e)}
         return {"enum_id": enum_id}
+
+    @mcp.tool()
+    def kb_import_symbols(
+        file_path: str,
+        format: str | None = None,
+    ) -> dict:
+        """Import symbols from an external .sym file into the knowledge base.
+
+        Supports 'sym' (RGBDS), 'pokered' (pokered/pokecrystal), or 'auto'
+        (auto-detect) format.  Returns count of imported, skipped, and error
+        symbols.
+        """
+        if not session.rom_loaded:
+            return {
+                "error": "NO_ROM_LOADED",
+                "message": "Load a ROM first with gb_load_rom.",
+            }
+
+        fmt = format if format is not None else "auto"
+        try:
+            validate_format(fmt)
+        except ValueError as e:
+            return {"error": "INVALID_PARAMETER", "message": str(e)}
+
+        try:
+            content = Path(file_path).read_text(encoding="utf-8")
+        except FileNotFoundError:
+            return {
+                "error": "FILE_NOT_FOUND",
+                "message": f"Symbol file not found: {file_path}",
+            }
+        except OSError as e:
+            return {"error": "FILE_READ_ERROR", "message": str(e)}
+
+        if fmt == "auto":
+            fmt = detect_format(content)
+
+        parse_result = parse_sym(content) if fmt == "sym" else parse_pokered(content)
+        import_result = session.kb.import_symbols(parse_result.symbols)
+
+        return {
+            "imported": import_result["imported"],
+            "skipped": import_result["skipped"],
+            "errors": parse_result.errors,
+        }
