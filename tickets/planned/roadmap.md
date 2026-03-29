@@ -8,7 +8,6 @@ When a ticket is moved out of `planned/` (to `ongoing/` or back to `backlog/`), 
 
 | # | Ticket | Title | Size | Priority | Dependencies |
 |---|--------|-------|------|----------|--------------|
-| 1 | BLO-026 | Memory and register write tools | S | P1 | BLO-013 ✅ |
 | 3 | BLO-041 | KB function info & statistics | S | P1 | BLO-005 ✅ |
 | 4 | BLO-028 | Save state management tools | S | P1 | BLO-021 ✅ |
 | 5 | BLO-030 | Memory diff between save states | S | P1 | BLO-021 ✅ |
