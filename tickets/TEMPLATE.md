@@ -39,6 +39,10 @@ estimated_complexity: small | medium | large
 
 <!-- Filled in during/after implementation. Track every file created or changed. -->
 
+## Decisions
+
+<!-- Design decisions made during this ticket. Reference D-XXX from docs/decisions.md. -->
+
 ## Notes
 
 <!-- Open questions, risks, links to external resources. -->

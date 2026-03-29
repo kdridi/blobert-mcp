@@ -34,7 +34,7 @@ PyBoy           External dependency
 
 ## Dependency Rules
 
-These are hard constraints. If a proposed change violates any of them, stop and restructure before proceeding.
+These are hard constraints. If a proposed change violates any of them, stop and restructure before proceeding. For the rationale behind these rules, see `docs/decisions.md` (D-006, D-009, D-011).
 
 1. **`domain/` imports nothing from the project.** Only Python stdlib and `dataclasses`. No PyBoy, no MCP, no emulator, no utils.
 2. **`tools/` may import from `domain/`, `kb/`, and `emulator.py`.** Tools must not import from other `tools/` modules.

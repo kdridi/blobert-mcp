@@ -221,6 +221,15 @@ See `docs/architecture.md` for the full architecture documentation.
 3. **Thin tools**: Tool handlers validate, read bytes, delegate to domain, format output. No business logic in tools.
 4. **Error convention**: Tools return `{"error": "CODE", "message": "..."}` on failure. Domain functions raise exceptions.
 
+### Design Decisions
+
+See `docs/decisions.md` for the full decision log.
+
+- Significant design choices get a `D-XXX` entry in `docs/decisions.md`.
+- A "significant" choice is one where alternatives were considered or the rationale is non-obvious.
+- When making a decision during ticket work, append it to `docs/decisions.md` and reference the `D-XXX` ID in the ticket's `## Decisions` section.
+- Do not record routine implementation choices (variable names, loop vs comprehension, etc.).
+
 ### Testing
 
 See `docs/testing-strategy.md` for the full testing strategy.
