@@ -7,12 +7,18 @@ import pytest
 from blobert_mcp.domain.kb import (
     ANNOTATION_TYPES,
     ROM_ADDRESS_LIMIT,
+    STRUCT_FIELD_TYPES,
     VARIABLE_TYPES,
     calculate_coverage_pct,
+    calculate_struct_total_size,
+    decode_struct_fields,
     rank_search_results,
     validate_address,
     validate_annotation_type,
+    validate_enum_values,
     validate_name,
+    validate_struct_field_type,
+    validate_struct_fields,
     validate_variable_type,
 )
 
@@ -179,3 +185,229 @@ class TestCalculateCoveragePct:
     def test_returns_float(self):
         result = calculate_coverage_pct(1, 2)
         assert isinstance(result, float)
+
+
+# ---------------------------------------------------------------------------
+# STRUCT_FIELD_TYPES
+# ---------------------------------------------------------------------------
+
+
+class TestStructFieldTypes:
+    def test_constant_value(self):
+        assert STRUCT_FIELD_TYPES == frozenset(
+            {"u8", "u16", "s8", "s16", "bool", "bytes"}
+        )
+
+
+# ---------------------------------------------------------------------------
+# validate_struct_field_type
+# ---------------------------------------------------------------------------
+
+
+class TestValidateStructFieldType:
+    @pytest.mark.parametrize("t", ["u8", "u16", "s8", "s16", "bool", "bytes"])
+    def test_valid_types_accepted(self, t: str):
+        validate_struct_field_type(t)  # should not raise
+
+    def test_invalid_type_raises_valueerror(self):
+        with pytest.raises(ValueError, match="struct field type"):
+            validate_struct_field_type("int32")
+
+
+# ---------------------------------------------------------------------------
+# validate_struct_fields
+# ---------------------------------------------------------------------------
+
+
+class TestValidateStructFields:
+    def test_valid_fields_accepted(self):
+        fields = [
+            {"name": "y", "offset": 0, "type": "u8", "size": 1},
+            {"name": "x", "offset": 1, "type": "u8", "size": 1},
+        ]
+        validate_struct_fields(fields)  # should not raise
+
+    def test_empty_list_raises_valueerror(self):
+        with pytest.raises(ValueError, match="empty"):
+            validate_struct_fields([])
+
+    def test_missing_name_raises_valueerror(self):
+        with pytest.raises(ValueError, match="name"):
+            validate_struct_fields([{"offset": 0, "type": "u8", "size": 1}])
+
+    def test_empty_name_raises_valueerror(self):
+        with pytest.raises(ValueError, match="name"):
+            validate_struct_fields([{"name": "", "offset": 0, "type": "u8", "size": 1}])
+
+    def test_missing_offset_raises_valueerror(self):
+        with pytest.raises(ValueError, match="offset"):
+            validate_struct_fields([{"name": "y", "type": "u8", "size": 1}])
+
+    def test_negative_offset_raises_valueerror(self):
+        with pytest.raises(ValueError, match="offset"):
+            validate_struct_fields(
+                [{"name": "y", "offset": -1, "type": "u8", "size": 1}]
+            )
+
+    def test_missing_size_raises_valueerror(self):
+        with pytest.raises(ValueError, match="size"):
+            validate_struct_fields([{"name": "y", "offset": 0, "type": "u8"}])
+
+    def test_zero_size_raises_valueerror(self):
+        with pytest.raises(ValueError, match="size"):
+            validate_struct_fields(
+                [{"name": "y", "offset": 0, "type": "u8", "size": 0}]
+            )
+
+    def test_negative_size_raises_valueerror(self):
+        with pytest.raises(ValueError, match="size"):
+            validate_struct_fields(
+                [{"name": "y", "offset": 0, "type": "u8", "size": -1}]
+            )
+
+    def test_missing_type_raises_valueerror(self):
+        with pytest.raises(ValueError, match="type"):
+            validate_struct_fields([{"name": "y", "offset": 0, "size": 1}])
+
+    def test_invalid_type_raises_valueerror(self):
+        with pytest.raises(ValueError, match="struct field type"):
+            validate_struct_fields(
+                [{"name": "y", "offset": 0, "type": "int32", "size": 4}]
+            )
+
+    def test_overlapping_fields_raises_valueerror(self):
+        fields = [
+            {"name": "a", "offset": 0, "type": "u16", "size": 2},
+            {"name": "b", "offset": 1, "type": "u8", "size": 1},
+        ]
+        with pytest.raises(ValueError, match="overlap"):
+            validate_struct_fields(fields)
+
+    def test_adjacent_fields_accepted(self):
+        fields = [
+            {"name": "a", "offset": 0, "type": "u16", "size": 2},
+            {"name": "b", "offset": 2, "type": "u8", "size": 1},
+        ]
+        validate_struct_fields(fields)  # should not raise
+
+    def test_same_offset_raises_valueerror(self):
+        fields = [
+            {"name": "a", "offset": 0, "type": "u8", "size": 1},
+            {"name": "b", "offset": 0, "type": "u16", "size": 2},
+        ]
+        with pytest.raises(ValueError, match="overlap"):
+            validate_struct_fields(fields)
+
+    def test_comment_field_optional(self):
+        fields = [
+            {"name": "y", "offset": 0, "type": "u8", "size": 1, "comment": "Y pos"},
+            {"name": "x", "offset": 1, "type": "u8", "size": 1},
+        ]
+        validate_struct_fields(fields)  # should not raise
+
+
+# ---------------------------------------------------------------------------
+# validate_enum_values
+# ---------------------------------------------------------------------------
+
+
+class TestValidateEnumValues:
+    def test_valid_values_accepted(self):
+        validate_enum_values({"UP": 0, "DOWN": 1, "LEFT": 2, "RIGHT": 3})
+
+    def test_empty_dict_raises_valueerror(self):
+        with pytest.raises(ValueError, match="empty"):
+            validate_enum_values({})
+
+    def test_empty_name_raises_valueerror(self):
+        with pytest.raises(ValueError, match="name"):
+            validate_enum_values({"": 0})
+
+    def test_whitespace_name_raises_valueerror(self):
+        with pytest.raises(ValueError, match="name"):
+            validate_enum_values({"  ": 0})
+
+    def test_duplicate_numeric_values_raises_valueerror(self):
+        with pytest.raises(ValueError, match="duplicate"):
+            validate_enum_values({"A": 0, "B": 0})
+
+
+# ---------------------------------------------------------------------------
+# calculate_struct_total_size
+# ---------------------------------------------------------------------------
+
+
+class TestCalculateStructTotalSize:
+    def test_single_field(self):
+        fields = [{"offset": 0, "size": 1}]
+        assert calculate_struct_total_size(fields) == 1
+
+    def test_multiple_fields(self):
+        fields = [{"offset": 0, "size": 1}, {"offset": 2, "size": 2}]
+        assert calculate_struct_total_size(fields) == 4
+
+    def test_gap_in_fields(self):
+        fields = [{"offset": 0, "size": 1}, {"offset": 4, "size": 1}]
+        assert calculate_struct_total_size(fields) == 5
+
+    def test_empty_fields_returns_zero(self):
+        assert calculate_struct_total_size([]) == 0
+
+
+# ---------------------------------------------------------------------------
+# decode_struct_fields
+# ---------------------------------------------------------------------------
+
+
+class TestDecodeStructFields:
+    def test_u8_field(self):
+        fields = [{"name": "val", "offset": 0, "type": "u8", "size": 1}]
+        result = decode_struct_fields(fields, b"\x42")
+        assert result[0]["value"] == 0x42
+
+    def test_u16_field_little_endian(self):
+        fields = [{"name": "val", "offset": 0, "type": "u16", "size": 2}]
+        result = decode_struct_fields(fields, b"\x34\x12")
+        assert result[0]["value"] == 0x1234
+
+    def test_s8_field_negative(self):
+        fields = [{"name": "val", "offset": 0, "type": "s8", "size": 1}]
+        result = decode_struct_fields(fields, b"\xff")
+        assert result[0]["value"] == -1
+
+    def test_s16_field_negative(self):
+        fields = [{"name": "val", "offset": 0, "type": "s16", "size": 2}]
+        result = decode_struct_fields(fields, b"\x00\x80")
+        assert result[0]["value"] == -32768
+
+    def test_bool_field_true(self):
+        fields = [{"name": "flag", "offset": 0, "type": "bool", "size": 1}]
+        result = decode_struct_fields(fields, b"\x01")
+        assert result[0]["value"] is True
+
+    def test_bool_field_false(self):
+        fields = [{"name": "flag", "offset": 0, "type": "bool", "size": 1}]
+        result = decode_struct_fields(fields, b"\x00")
+        assert result[0]["value"] is False
+
+    def test_bytes_field(self):
+        fields = [{"name": "raw", "offset": 0, "type": "bytes", "size": 4}]
+        result = decode_struct_fields(fields, b"\xde\xad\xbe\xef")
+        assert result[0]["value"] == "DEADBEEF"
+
+    def test_multiple_fields(self):
+        fields = [
+            {"name": "y", "offset": 0, "type": "u8", "size": 1},
+            {"name": "x", "offset": 1, "type": "u8", "size": 1},
+        ]
+        result = decode_struct_fields(fields, b"\x10\x20")
+        assert result[0]["name"] == "y"
+        assert result[0]["value"] == 0x10
+        assert result[1]["name"] == "x"
+        assert result[1]["value"] == 0x20
+
+    def test_includes_raw_hex(self):
+        fields = [{"name": "val", "offset": 0, "type": "u16", "size": 2}]
+        result = decode_struct_fields(fields, b"\x34\x12")
+        assert "raw_hex" in result[0]
+        assert result[0]["raw_hex"] == "3412"
