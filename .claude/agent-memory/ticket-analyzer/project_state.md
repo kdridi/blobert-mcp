@@ -30,8 +30,10 @@ BLO-041 (completed): KB function info & statistics — kb_get_function_info + kb
 
 BLO-028 (completed): Save state management tools — gb_list_states + gb_delete_state, timestamp added to gb_save_state. 9 new tests. 713 total tests.
 
-Planned tickets (in execution order): BLO-030, BLO-034, BLO-038, BLO-040, BLO-039, BLO-027, BLO-029, BLO-037, BLO-031, BLO-033, BLO-035, BLO-036, BLO-053, BLO-056, BLO-043, BLO-058.
+BLO-030 (completed): Memory diff between save states — gb_memory_diff tool with region-based filtering (prefix matching). Domain: memory_diff.py (MemoryChange, diff_memory, MAX_CHANGES=512). Added resolve_regions() + DEFAULT_DIFF_REGION_NAMES to memory_map.py. 33 new tests (11 domain + 9 resolve_regions + 13 integration). 746 total tests.
+
+Planned tickets (in execution order): BLO-034, BLO-038, BLO-040, BLO-039, BLO-027, BLO-029, BLO-037, BLO-031, BLO-033, BLO-035, BLO-036, BLO-053, BLO-056, BLO-043, BLO-058.
 
 Remaining backlog (27 tickets): BLO-042, BLO-044, BLO-045, BLO-046, BLO-047, BLO-048, BLO-049, BLO-050, BLO-051, BLO-052, BLO-054, BLO-055, BLO-057, BLO-059, BLO-060, BLO-061, BLO-062, BLO-063, BLO-064, BLO-065, BLO-066, BLO-067, BLO-068, BLO-069, BLO-070, BLO-071, BLO-072.
 
-**How to apply:** All P0 tools are complete. Next ticket to activate: BLO-030 (Memory diff between save states). Consult `tickets/planned/roadmap.md` for the full sequence. Ticket lifecycle: backlog → planned → ongoing → completed/rejected.
+**How to apply:** All P0 tools are complete. Next ticket to activate: BLO-034 (Byte pattern search & string detection). Consult `tickets/planned/roadmap.md` for the full sequence. Ticket lifecycle: backlog → planned → ongoing → completed/rejected.
