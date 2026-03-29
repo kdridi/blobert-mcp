@@ -7,6 +7,8 @@ from typing import Any
 
 from pyboy import PyBoy
 
+from blobert_mcp.kb.database import KnowledgeBase, kb_path_for_rom
+
 
 class EmulatorSession:
     """Shared emulator state for all MCP tool handlers.
@@ -20,6 +22,7 @@ class EmulatorSession:
         self.rom_path: str | None = None
         self.save_states: dict[str, Any] = {}
         self.breakpoints: dict[str, Any] = {}
+        self.kb: KnowledgeBase | None = None
 
     @property
     def rom_loaded(self) -> bool:
@@ -34,9 +37,13 @@ class EmulatorSession:
         window = "null" if headless else "SDL2"
         self.pyboy = PyBoy(str(rom), window=window)
         self.rom_path = str(rom)
+        self.kb = KnowledgeBase(kb_path_for_rom(str(rom)))
 
     def shutdown(self) -> None:
         """Stop the emulator and release resources."""
+        if self.kb is not None:
+            self.kb.close()
+            self.kb = None
         if self.pyboy is not None:
             self.pyboy.stop()
             self.pyboy = None

@@ -4,6 +4,7 @@ from mcp.server.fastmcp import FastMCP
 
 from blobert_mcp.emulator import EmulatorSession
 from blobert_mcp.tools.disasm import register_disasm_tools
+from blobert_mcp.tools.kb import register_kb_tools
 from blobert_mcp.tools.memory import register_memory_tools
 from blobert_mcp.tools.session import register_session_tools
 from blobert_mcp.tools.static import register_static_tools
@@ -22,6 +23,7 @@ register_session_tools(mcp, session)
 register_static_tools(mcp, session)
 register_memory_tools(mcp, session)
 register_disasm_tools(mcp, session)
+register_kb_tools(mcp, session)
 
 
 def main() -> None:

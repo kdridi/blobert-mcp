@@ -112,6 +112,7 @@ class FakeEmulatorSession:
             self.rom_path = None
         self.save_states: dict[str, Any] = {}
         self.breakpoints: dict[str, Any] = {}
+        self.kb = None
         self._rom_bytes = rom_bytes
 
     @property

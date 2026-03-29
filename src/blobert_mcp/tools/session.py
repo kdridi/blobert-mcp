@@ -50,7 +50,7 @@ def register_session_tools(mcp, session) -> None:
             "rom_title": rom_title,
             "frame_count": frame_count,
             "pc": pc,
-            "annotation_count": 0,
+            "annotation_count": session.kb.annotation_count() if session.kb else 0,
             "save_state_count": len(session.save_states),
         }
 
