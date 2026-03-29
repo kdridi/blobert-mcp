@@ -546,3 +546,83 @@ class TestGbScreenshot:
         mcp = _make_mcp(session_with_rom)
         result = _get_tool(mcp, "gb_screenshot")(scale=0)
         assert result["error"] == "INVALID_PARAMETER"
+
+
+# ---------------------------------------------------------------------------
+# TestGbSetRegister
+# ---------------------------------------------------------------------------
+
+
+class TestGbSetRegister:
+    def test_no_rom(self, session_no_rom):
+        mcp = _make_mcp(session_no_rom)
+        result = _get_tool(mcp, "gb_set_register")(register="A", value=0x42)
+        assert result["error"] == "NO_ROM_LOADED"
+
+    def test_set_a_register(self, session_with_rom):
+        mcp = _make_mcp(session_with_rom)
+        result = _get_tool(mcp, "gb_set_register")(register="A", value=0x42)
+        assert result["status"] == "ok"
+        assert session_with_rom.pyboy.register_file.A == 0x42
+
+    def test_set_sp_register(self, session_with_rom):
+        mcp = _make_mcp(session_with_rom)
+        result = _get_tool(mcp, "gb_set_register")(register="SP", value=0x1234)
+        assert result["status"] == "ok"
+        assert session_with_rom.pyboy.register_file.SP == 0x1234
+
+    def test_set_pc_register(self, session_with_rom):
+        mcp = _make_mcp(session_with_rom)
+        result = _get_tool(mcp, "gb_set_register")(register="PC", value=0x0150)
+        assert result["status"] == "ok"
+        assert session_with_rom.pyboy.register_file.PC == 0x0150
+
+    def test_returns_confirmation(self, session_with_rom):
+        mcp = _make_mcp(session_with_rom)
+        result = _get_tool(mcp, "gb_set_register")(register="A", value=0x42)
+        assert result["status"] == "ok"
+        assert result["register"] == "A"
+        assert result["value"] == "0x42"
+
+    def test_case_insensitive(self, session_with_rom):
+        mcp = _make_mcp(session_with_rom)
+        result = _get_tool(mcp, "gb_set_register")(register="a", value=0x42)
+        assert result["status"] == "ok"
+        assert result["register"] == "A"
+
+    def test_invalid_register_name(self, session_with_rom):
+        mcp = _make_mcp(session_with_rom)
+        result = _get_tool(mcp, "gb_set_register")(register="X", value=0x42)
+        assert result["error"] == "INVALID_PARAMETER"
+
+    def test_composite_register_rejected(self, session_with_rom):
+        mcp = _make_mcp(session_with_rom)
+        result = _get_tool(mcp, "gb_set_register")(register="AF", value=0x1234)
+        assert result["error"] == "INVALID_PARAMETER"
+
+    def test_8bit_value_out_of_range(self, session_with_rom):
+        mcp = _make_mcp(session_with_rom)
+        result = _get_tool(mcp, "gb_set_register")(register="A", value=0x100)
+        assert result["error"] == "INVALID_PARAMETER"
+
+    def test_negative_value(self, session_with_rom):
+        mcp = _make_mcp(session_with_rom)
+        result = _get_tool(mcp, "gb_set_register")(register="A", value=-1)
+        assert result["error"] == "INVALID_PARAMETER"
+
+    def test_16bit_value_out_of_range(self, session_with_rom):
+        mcp = _make_mcp(session_with_rom)
+        result = _get_tool(mcp, "gb_set_register")(register="SP", value=0x10000)
+        assert result["error"] == "INVALID_PARAMETER"
+
+    def test_f_register_masked(self, session_with_rom):
+        mcp = _make_mcp(session_with_rom)
+        result = _get_tool(mcp, "gb_set_register")(register="F", value=0xFF)
+        assert result["status"] == "ok"
+        assert session_with_rom.pyboy.register_file.F == 0xF0
+        assert result["value"] == "0xF0"
+
+    def test_16bit_value_formatted_as_hex(self, session_with_rom):
+        mcp = _make_mcp(session_with_rom)
+        result = _get_tool(mcp, "gb_set_register")(register="SP", value=0x1234)
+        assert result["value"] == "0x1234"

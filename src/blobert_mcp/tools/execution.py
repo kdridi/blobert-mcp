@@ -145,3 +145,26 @@ def register_execution_tools(mcp, session) -> None:
         return registers.format_registers(
             rf.A, rf.B, rf.C, rf.D, rf.E, rf.F, rf.H, rf.L, rf.SP, rf.PC
         )
+
+    @mcp.tool()
+    def gb_set_register(register: str, value: int) -> dict:
+        """Set a CPU register to a specific value.
+
+        Supported registers: A, B, C, D, E, F, H, L, SP, PC.
+        8-bit registers accept 0x00-0xFF, 16-bit (SP, PC) accept
+        0x0000-0xFFFF. Writing to F masks to upper nibble (0xF0).
+        """
+        if not session.rom_loaded:
+            return {
+                "error": "NO_ROM_LOADED",
+                "message": "Load a ROM first with gb_load_rom.",
+            }
+        try:
+            name = registers.validate_register_name(register)
+            value = registers.validate_register_value(name, value)
+        except ValueError as exc:
+            return {"error": "INVALID_PARAMETER", "message": str(exc)}
+        setattr(session.pyboy.register_file, name, value)
+        size = registers.get_register_size(name)
+        fmt = f"0x{value:04X}" if size == 16 else f"0x{value:02X}"
+        return {"status": "ok", "register": name, "value": fmt}
