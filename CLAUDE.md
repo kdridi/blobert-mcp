@@ -64,7 +64,7 @@ backlog → ongoing → completed
 **2. Activate** — Before moving to `ongoing/`:
   - Verify `tickets/ongoing/` is empty (no other active ticket)
   - Verify all dependencies are in `tickets/completed/`
-  - Move file to `tickets/ongoing/BLO-XXX.md`
+  - Use `git mv tickets/backlog/BLO-XXX.md tickets/ongoing/BLO-XXX.md` — always `git mv`, never delete+recreate
   - Update frontmatter: `status: ongoing`, `updated: <now>`
   - Add log entry: `- <now>: Ticket activated.`
 
@@ -74,18 +74,20 @@ backlog → ongoing → completed
   - Track every created/modified file in the Files Modified section
   - Every commit message must start with the ticket ID: `BLO-XXX: <description>`
 
-**4. Complete** — When all acceptance criteria are met:
-  - Check off all acceptance criteria checkboxes
-  - Ensure Files Modified is complete
-  - Add log entry: `- <now>: Ticket completed.`
-  - Update frontmatter: `status: completed`, `updated: <now>`
-  - Move file to `tickets/completed/BLO-XXX.md`
-  - Check if `.claude/agent-memory/ticket-analyzer/project_state.md` is modified — if so, stage it in the same completion commit (not a separate one)
+**4. Complete** — When all acceptance criteria are met, execute these steps in order:
+  1. Verify every `- [ ]` in Acceptance Criteria is now `- [x]`. If any remain unchecked, stop.
+  2. Ensure the `## Files Modified` section lists every file created or changed.
+  3. Add log entry: `- <now>: Ticket completed.`
+  4. Update frontmatter: `status: completed`, `updated: <now>`
+  5. Use `git mv tickets/ongoing/BLO-XXX.md tickets/completed/BLO-XXX.md` — always `git mv`, never delete+recreate. This stages both the deletion and creation in one step.
+  6. Update `.claude/agent-memory/ticket-analyzer/project_state.md` if applicable, then `git add` it.
+  7. Stage all other modified files (`git add` the specific files).
+  8. Commit everything in a **single commit**. The old ticket path, the new ticket path, project_state.md, and any remaining changes must all be in this one commit. Never split ticket cleanup into a separate commit.
 
 **5. Reject** — If the ticket is cancelled or invalid:
   - Document the reason in the Log section
   - Update frontmatter: `status: rejected`, `updated: <now>`
-  - Move file to `tickets/rejected/BLO-XXX.md`
+  - Use `git mv tickets/ongoing/BLO-XXX.md tickets/rejected/BLO-XXX.md` (or from `backlog/`) — always `git mv`, never delete+recreate
   - Check if other tickets depend on this one and flag them for review
 
 ---
