@@ -613,6 +613,41 @@ class KnowledgeBase:
         }
 
     # ------------------------------------------------------------------
+    # Import
+    # ------------------------------------------------------------------
+
+    def import_symbols(self, symbols: list) -> dict:
+        """Import parsed symbols into the KB.
+
+        For each symbol, if a label already exists at that address+bank,
+        skip it.  Otherwise create an annotation (and a function definition
+        for code symbols).
+
+        Returns ``{"imported": N, "skipped": M}``.
+        """
+        imported = 0
+        skipped = 0
+        for sym in symbols:
+            existing = self.get_label(sym.address, bank=sym.bank)
+            if existing is not None:
+                skipped += 1
+                continue
+            self.annotate(
+                sym.address,
+                bank=sym.bank,
+                label=sym.label,
+                type=sym.symbol_type,
+            )
+            if sym.symbol_type == "code":
+                self.define_function(
+                    sym.address,
+                    bank=sym.bank,
+                    name=sym.label,
+                )
+            imported += 1
+        return {"imported": imported, "skipped": skipped}
+
+    # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
 
