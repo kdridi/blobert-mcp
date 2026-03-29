@@ -24,8 +24,10 @@ BLO-073 (completed): Scheduled 20 tickets from backlog to planned/ with roadmap.
 
 BLO-032 (completed): LCD and hardware register tools — 4 MCP tools (gb_get_lcd_status, gb_get_timer_state, gb_get_audio_state, gb_get_serial_state) backed by domain/io_registers.py. 58 domain tests + 20 tool tests. 553 total tests.
 
-Planned tickets (in execution order): BLO-026, BLO-041, BLO-028, BLO-030, BLO-034, BLO-038, BLO-040, BLO-039, BLO-027, BLO-029, BLO-037, BLO-031, BLO-033, BLO-035, BLO-036, BLO-053, BLO-056, BLO-043, BLO-058.
+BLO-026 (completed): Memory and register write tools — gb_write_memory + gb_set_register. Domain: registers.py (4 validation functions, 3 constants), memory.py (new — WRITABLE_RANGES, validate_write_address, parse_hex_string). 670 total tests.
+
+Planned tickets (in execution order): BLO-041, BLO-028, BLO-030, BLO-034, BLO-038, BLO-040, BLO-039, BLO-027, BLO-029, BLO-037, BLO-031, BLO-033, BLO-035, BLO-036, BLO-053, BLO-056, BLO-043, BLO-058.
 
 Remaining backlog (27 tickets): BLO-042, BLO-044, BLO-045, BLO-046, BLO-047, BLO-048, BLO-049, BLO-050, BLO-051, BLO-052, BLO-054, BLO-055, BLO-057, BLO-059, BLO-060, BLO-061, BLO-062, BLO-063, BLO-064, BLO-065, BLO-066, BLO-067, BLO-068, BLO-069, BLO-070, BLO-071, BLO-072.
 
-**How to apply:** All P0 tools are complete. Next ticket to activate: BLO-026 (memory and register write tools). Consult `tickets/planned/roadmap.md` for the full sequence. Ticket lifecycle: backlog → planned → ongoing → completed/rejected.
+**How to apply:** All P0 tools are complete. Next ticket to activate: BLO-041 (KB function info & statistics). Consult `tickets/planned/roadmap.md` for the full sequence. Ticket lifecycle: backlog → planned → ongoing → completed/rejected.
