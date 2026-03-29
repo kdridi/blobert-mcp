@@ -28,6 +28,7 @@ Format: **Context** (why we faced a choice), **Decision** (what we chose),
 | D-013 | 2026-03-29 | Dict cache for get_label() | BLO-005 |
 | D-014 | 2026-03-29 | Pre-commit hooks mandatory | BLO-018 |
 | D-015 | 2026-03-29 | Single-file decision log | BLO-019 |
+| D-016 | 2026-03-29 | Datetime format for tickets | BLO-004 |
 
 ---
 
@@ -270,3 +271,23 @@ Individual ADR files require globbing 20+ files. MADR's 7-10
 sections are too heavy for this project's decision velocity.
 The project will have ~30-50 decisions total — a single file
 remains scannable at that scale.
+
+---
+
+### D-016: Datetime format for tickets
+**Date:** 2026-03-29 | **Ticket:** BLO-004
+
+**Context:** Multiple tickets are created on the same day. The
+`YYYY-MM-DD` format in frontmatter (`created`, `updated`) and
+log entries does not allow temporal sorting within a single day.
+
+**Decision:** Change ticket date format to `YYYY-MM-DD HH:MM:SS`
+in both frontmatter fields and log entries. Existing tickets
+retain date-only format (no fabricated timestamps). New tickets
+use the full datetime going forward.
+
+**Why:** Enables temporal ordering of tickets and events within
+the same day. The AI creates tickets rapidly — sometimes several
+per session — and the date-only format loses sequencing
+information. Not backfilling existing tickets avoids fabricating
+data we don't have.

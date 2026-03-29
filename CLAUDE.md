@@ -43,6 +43,7 @@ All tickets follow the template in `tickets/TEMPLATE.md`. Key fields:
 | `dependencies` | List of ticket IDs that must be completed first |
 | `assignee` | `human` \| `ai` \| `unassigned` |
 | `estimated_complexity` | `small` \| `medium` \| `large` |
+| `created` / `updated` | Datetime in `YYYY-MM-DD HH:MM:SS` format (enables temporal sorting) |
 
 ### ID Assignment
 
@@ -64,8 +65,8 @@ backlog → ongoing → completed
   - Verify `tickets/ongoing/` is empty (no other active ticket)
   - Verify all dependencies are in `tickets/completed/`
   - Move file to `tickets/ongoing/BLO-XXX.md`
-  - Update frontmatter: `status: ongoing`, `updated: <today>`
-  - Add log entry: `- <date>: Ticket activated.`
+  - Update frontmatter: `status: ongoing`, `updated: <now>`
+  - Add log entry: `- <now>: Ticket activated.`
 
 **3. Work** — While the ticket is active:
   - All code changes must fall within the ticket's scope
@@ -76,14 +77,14 @@ backlog → ongoing → completed
 **4. Complete** — When all acceptance criteria are met:
   - Check off all acceptance criteria checkboxes
   - Ensure Files Modified is complete
-  - Add log entry: `- <date>: Ticket completed.`
-  - Update frontmatter: `status: completed`, `updated: <today>`
+  - Add log entry: `- <now>: Ticket completed.`
+  - Update frontmatter: `status: completed`, `updated: <now>`
   - Move file to `tickets/completed/BLO-XXX.md`
   - Check if `.claude/agent-memory/ticket-analyzer/project_state.md` is modified — if so, stage it in the same completion commit (not a separate one)
 
 **5. Reject** — If the ticket is cancelled or invalid:
   - Document the reason in the Log section
-  - Update frontmatter: `status: rejected`, `updated: <today>`
+  - Update frontmatter: `status: rejected`, `updated: <now>`
   - Move file to `tickets/rejected/BLO-XXX.md`
   - Check if other tickets depend on this one and flag them for review
 

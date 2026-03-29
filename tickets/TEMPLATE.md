@@ -4,8 +4,8 @@ title: "<concise title>"
 status: backlog
 priority: P0 | P1 | P2
 type: feature | bugfix | refactor | docs | research | infrastructure
-created: YYYY-MM-DD
-updated: YYYY-MM-DD
+created: YYYY-MM-DD HH:MM:SS
+updated: YYYY-MM-DD HH:MM:SS
 dependencies: []
 assignee: human | ai | unassigned
 estimated_complexity: small | medium | large
@@ -50,4 +50,4 @@ estimated_complexity: small | medium | large
 ## Log
 
 <!-- Append-only log of significant events during the ticket's lifecycle. -->
-- YYYY-MM-DD: Ticket created.
+- YYYY-MM-DD HH:MM:SS: Ticket created.
