@@ -1,2 +1,2 @@
 - [Project ticket sizing calibration](project_ticket_sizing.md) — typical ticket scope: small=4 files/4 criteria, medium=7-13 files/criteria, large=complex engine work
-- [Project state as of analysis start](project_state.md) — zero source code as of 2026-03-28; BLO-006 is the only completed ticket
+- [Project state as of 2026-03-29](project_state.md) — BLO-013 done; BLO-020/021/022 are the active P0 chain; no registers.py/buttons.py yet
