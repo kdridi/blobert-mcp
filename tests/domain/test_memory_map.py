@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from blobert_mcp.domain.memory_map import REGIONS, get_regions
+from blobert_mcp.domain.memory_map import REGIONS, get_regions, resolve_regions
 
 
 def test_regions_count():
@@ -79,3 +79,57 @@ def test_get_regions_returns_copy():
 def test_regions_are_frozen():
     with pytest.raises(AttributeError):
         REGIONS[0].name = "MODIFIED"  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# resolve_regions
+# ---------------------------------------------------------------------------
+
+
+class TestResolveRegions:
+    def test_exact_match(self):
+        result = resolve_regions(["WRAM0"])
+        assert len(result) == 1
+        assert result[0].name == "WRAM0"
+
+    def test_case_insensitive(self):
+        result = resolve_regions(["wram0"])
+        assert len(result) == 1
+        assert result[0].name == "WRAM0"
+
+    def test_prefix_match_wram(self):
+        result = resolve_regions(["WRAM"])
+        assert len(result) == 2
+        names = [r.name for r in result]
+        assert "WRAM0" in names
+        assert "WRAMX" in names
+
+    def test_prefix_match_rom(self):
+        result = resolve_regions(["ROM"])
+        assert len(result) == 2
+        names = [r.name for r in result]
+        assert "ROM0" in names
+        assert "ROMX" in names
+
+    def test_multiple_names(self):
+        result = resolve_regions(["HRAM", "WRAM0"])
+        assert len(result) == 2
+
+    def test_deduplication(self):
+        result = resolve_regions(["WRAM", "WRAM0"])
+        names = [r.name for r in result]
+        assert names.count("WRAM0") == 1
+
+    def test_unknown_raises(self):
+        with pytest.raises(ValueError, match="Unknown region"):
+            resolve_regions(["NONEXISTENT"])
+
+    def test_empty_list_raises(self):
+        with pytest.raises(ValueError, match="empty"):
+            resolve_regions([])
+
+    def test_sorted_by_start_address(self):
+        result = resolve_regions(["HRAM", "WRAM0"])
+        assert result[0].start < result[1].start
+        assert result[0].name == "WRAM0"
+        assert result[1].name == "HRAM"
