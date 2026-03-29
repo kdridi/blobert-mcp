@@ -11,35 +11,78 @@ def register_execution_tools(mcp, session) -> None:
 
     @mcp.tool()
     def gb_step(count: int = 1, mode: str = "frame") -> dict:
-        """Advance emulation by *count* frames and return CPU state.
+        """Advance emulation by *count* steps and return CPU state.
 
-        Only mode="frame" is supported; mode="instruction" is deferred to BLO-022.
-        Returns current PC, decoded instruction (mnemonic + operands), and full
+        Modes:
+        - "frame": advance *count* frames (fast, default).
+        - "instruction": advance *count* individual CPU instructions via
+          hook-based stepping (slower, precise).
+
+        Returns current PC, decoded instruction at the new PC, and full
         register state.
         """
-        if mode != "frame":
+        if mode not in ("frame", "instruction"):
             return {
-                "error": "NOT_IMPLEMENTED",
-                "message": (
-                    "Instruction stepping is not yet available. Use mode='frame'."
-                ),
+                "error": "INVALID_PARAMETER",
+                "message": f"Invalid mode: {mode!r}. Use 'frame' or 'instruction'.",
             }
         if not session.rom_loaded:
             return {
                 "error": "NO_ROM_LOADED",
                 "message": "Load a ROM first with gb_load_rom.",
             }
+
+        if mode == "frame":
+            for _ in range(count):
+                session.pyboy.tick()
+            rf = session.pyboy.register_file
+            pc = rf.PC
+            raw = bytes(session.pyboy.memory[pc : pc + 3])
+            instr = decode_instruction(raw, pc)
+            return {
+                "status": "ok",
+                "frames_executed": count,
+                "pc": pc,
+                "instruction": {
+                    "mnemonic": instr.mnemonic,
+                    "operands": instr.operands,
+                },
+                "registers": registers.format_registers(
+                    rf.A, rf.B, rf.C, rf.D, rf.E, rf.F, rf.H, rf.L, rf.SP, rf.PC
+                ),
+            }
+
+        # mode == "instruction"
         for _ in range(count):
-            session.pyboy.tick()
+            pc = session.pyboy.register_file.PC
+            raw = bytes(session.pyboy.memory[pc : pc + 3])
+            instr = decode_instruction(raw, pc)
+            next_pc = (pc + instr.size) & 0xFFFF
+
+            hit = [False]
+
+            def _on_step(context: list) -> None:
+                context[0] = True
+
+            session.pyboy.hook_register(next_pc, _on_step, hit)
+            frames = 0
+            while not hit[0] and frames < 10:
+                session.pyboy.tick()
+                frames += 1
+            session.pyboy.hook_deregister(next_pc)
+
         rf = session.pyboy.register_file
         pc = rf.PC
         raw = bytes(session.pyboy.memory[pc : pc + 3])
-        instr = decode_instruction(raw, pc)
+        next_instr = decode_instruction(raw, pc)
         return {
             "status": "ok",
-            "frames_executed": count,
+            "instructions_executed": count,
             "pc": pc,
-            "instruction": {"mnemonic": instr.mnemonic, "operands": instr.operands},
+            "instruction": {
+                "mnemonic": next_instr.mnemonic,
+                "operands": next_instr.operands,
+            },
             "registers": registers.format_registers(
                 rf.A, rf.B, rf.C, rf.D, rf.E, rf.F, rf.H, rf.L, rf.SP, rf.PC
             ),

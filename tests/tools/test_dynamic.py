@@ -9,10 +9,13 @@ from typing import Any
 
 import pytest
 from mcp.server.fastmcp import FastMCP
+from PIL import Image as PILImage
 
+from blobert_mcp.domain.disasm.decoder import decode_instruction
 from blobert_mcp.tools.execution import register_execution_tools
 from blobert_mcp.tools.input import register_input_tools
 from blobert_mcp.tools.savestate import register_savestate_tools
+from blobert_mcp.tools.visual import register_visual_tools
 
 # ---------------------------------------------------------------------------
 # Fake infrastructure
@@ -52,6 +55,13 @@ class FakeMemory:
         self._data[key] = value
 
 
+class FakeScreen:
+    """Provides pyboy.screen.image for screenshot tests."""
+
+    def __init__(self) -> None:
+        self.image = PILImage.new("RGBA", (160, 144), (255, 255, 255, 255))
+
+
 class FakePyBoy:
     """Minimal PyBoy fake for dynamic tool tests."""
 
@@ -60,20 +70,37 @@ class FakePyBoy:
         self.memory = FakeMemory()
         self.frame_count = 0
         self._hooks: dict[int, tuple] = {}
+        self._instruction_map: dict[int, int] = {}
         self._last_button_press: str | None = None
         self._last_button_release: str | None = None
         self._saved_bytes: bytes | None = None
+        self.screen = FakeScreen()
+
+    def set_instruction_at(self, pc: int, opcode_bytes: bytes) -> None:
+        """Plant instruction bytes at *pc* and register the pc->next_pc mapping."""
+        for i, b in enumerate(opcode_bytes):
+            self.memory[pc + i] = b
+        instr = decode_instruction(opcode_bytes, pc)
+        self._instruction_map[pc] = (pc + instr.size) & 0xFFFF
 
     def tick(self) -> bool:
         self.frame_count += 1
         pc = self.register_file.PC
+        # Fire hooks at current PC — models "arrived at this address"
         if pc in self._hooks:
             callback, context = self._hooks[pc]
             callback(context)
+            return True
+        # Simulate instruction execution: advance PC if mapped
+        if pc in self._instruction_map:
+            self.register_file.PC = self._instruction_map[pc]
         return True
 
     def hook_register(self, address: int, callback, context: Any) -> None:
         self._hooks[address] = (callback, context)
+
+    def hook_deregister(self, address: int) -> None:
+        self._hooks.pop(address, None)
 
     def button_press(self, button: str) -> None:
         self._last_button_press = button
@@ -118,6 +145,7 @@ def _make_mcp(session: FakeEmulatorSession) -> FastMCP:
     register_execution_tools(mcp, session)
     register_input_tools(mcp, session)
     register_savestate_tools(mcp, session)
+    register_visual_tools(mcp, session)
     return mcp
 
 
@@ -153,15 +181,10 @@ class TestGbStep:
         result = _get_tool(mcp, "gb_step")()
         assert result["error"] == "NO_ROM_LOADED"
 
-    def test_instruction_mode_not_implemented(self, session_with_rom):
-        mcp = _make_mcp(session_with_rom)
-        result = _get_tool(mcp, "gb_step")(mode="instruction")
-        assert result["error"] == "NOT_IMPLEMENTED"
-
-    def test_unknown_mode_not_implemented(self, session_with_rom):
+    def test_unknown_mode_invalid(self, session_with_rom):
         mcp = _make_mcp(session_with_rom)
         result = _get_tool(mcp, "gb_step")(mode="other")
-        assert result["error"] == "NOT_IMPLEMENTED"
+        assert result["error"] == "INVALID_PARAMETER"
 
     def test_default_one_frame(self, session_with_rom):
         mcp = _make_mcp(session_with_rom)
@@ -406,3 +429,120 @@ class TestGbLoadState:
         save_result = _get_tool(mcp, "gb_save_state")(name="checkpoint")
         load_result = _get_tool(mcp, "gb_load_state")(state_id=save_result["state_id"])
         assert load_result["name"] == "checkpoint"
+
+
+# ---------------------------------------------------------------------------
+# TestGbStepInstruction
+# ---------------------------------------------------------------------------
+
+
+class TestGbStepInstruction:
+    def test_no_rom(self, session_no_rom):
+        mcp = _make_mcp(session_no_rom)
+        result = _get_tool(mcp, "gb_step")(mode="instruction")
+        assert result["error"] == "NO_ROM_LOADED"
+
+    def test_single_nop(self, session_with_rom):
+        """NOP (0x00) is 1 byte — PC should advance from 0x0100 to 0x0101."""
+        session_with_rom.pyboy.set_instruction_at(0x0100, b"\x00")
+        mcp = _make_mcp(session_with_rom)
+        result = _get_tool(mcp, "gb_step")(mode="instruction")
+        assert result["status"] == "ok"
+        assert result["instructions_executed"] == 1
+        assert result["pc"] == 0x0101
+
+    def test_two_byte_instruction(self, session_with_rom):
+        """LD A,0x42 (0x3E 0x42) is 2 bytes — PC advances to 0x0102."""
+        session_with_rom.pyboy.set_instruction_at(0x0100, b"\x3e\x42")
+        mcp = _make_mcp(session_with_rom)
+        result = _get_tool(mcp, "gb_step")(mode="instruction")
+        assert result["status"] == "ok"
+        assert result["pc"] == 0x0102
+
+    def test_three_byte_instruction(self, session_with_rom):
+        """JP 0x1234 (0xC3 0x34 0x12) is 3 bytes — size=3, timeout path."""
+        session_with_rom.pyboy.set_instruction_at(0x0100, b"\xc3\x34\x12")
+        mcp = _make_mcp(session_with_rom)
+        result = _get_tool(mcp, "gb_step")(mode="instruction")
+        assert result["status"] == "ok"
+        assert result["instructions_executed"] == 1
+
+    def test_cb_prefixed(self, session_with_rom):
+        """BIT 0,B (0xCB 0x40) is 2 bytes — PC advances to 0x0102."""
+        session_with_rom.pyboy.set_instruction_at(0x0100, b"\xcb\x40")
+        mcp = _make_mcp(session_with_rom)
+        result = _get_tool(mcp, "gb_step")(mode="instruction")
+        assert result["status"] == "ok"
+        assert result["pc"] == 0x0102
+
+    def test_multiple_steps(self, session_with_rom):
+        """Two NOPs — count=2 should step both, PC at 0x0102."""
+        session_with_rom.pyboy.set_instruction_at(0x0100, b"\x00")
+        session_with_rom.pyboy.set_instruction_at(0x0101, b"\x00")
+        mcp = _make_mcp(session_with_rom)
+        result = _get_tool(mcp, "gb_step")(count=2, mode="instruction")
+        assert result["status"] == "ok"
+        assert result["instructions_executed"] == 2
+        assert result["pc"] == 0x0102
+
+    def test_returns_instruction_and_registers(self, session_with_rom):
+        """Response includes decoded instruction at new PC and full registers."""
+        session_with_rom.pyboy.set_instruction_at(0x0100, b"\x00")
+        session_with_rom.pyboy.set_instruction_at(0x0101, b"\x3e\x42")
+        mcp = _make_mcp(session_with_rom)
+        result = _get_tool(mcp, "gb_step")(mode="instruction")
+        assert result["instruction"]["mnemonic"] == "LD"
+        assert "registers" in result
+        for key in ("A", "B", "C", "D", "E", "F", "H", "L", "SP", "PC", "flags"):
+            assert key in result["registers"]
+
+
+# ---------------------------------------------------------------------------
+# TestGbScreenshot
+# ---------------------------------------------------------------------------
+
+
+class TestGbScreenshot:
+    def test_no_rom(self, session_no_rom):
+        mcp = _make_mcp(session_no_rom)
+        result = _get_tool(mcp, "gb_screenshot")()
+        assert result["error"] == "NO_ROM_LOADED"
+
+    def test_default_png(self, session_with_rom):
+        from mcp.server.fastmcp.utilities.types import Image as MCPImage
+
+        mcp = _make_mcp(session_with_rom)
+        result = _get_tool(mcp, "gb_screenshot")()
+        assert isinstance(result, MCPImage)
+        assert result._mime_type == "image/png"
+        # PNG magic bytes
+        assert result.data[:4] == b"\x89PNG"
+
+    def test_webp_format(self, session_with_rom):
+        from mcp.server.fastmcp.utilities.types import Image as MCPImage
+
+        mcp = _make_mcp(session_with_rom)
+        result = _get_tool(mcp, "gb_screenshot")(format="webp")
+        assert isinstance(result, MCPImage)
+        assert result._mime_type == "image/webp"
+
+    def test_invalid_format(self, session_with_rom):
+        mcp = _make_mcp(session_with_rom)
+        result = _get_tool(mcp, "gb_screenshot")(format="bmp")
+        assert result["error"] == "INVALID_PARAMETER"
+
+    def test_scale_2(self, session_with_rom):
+        from io import BytesIO
+
+        from mcp.server.fastmcp.utilities.types import Image as MCPImage
+
+        mcp = _make_mcp(session_with_rom)
+        result = _get_tool(mcp, "gb_screenshot")(scale=2)
+        assert isinstance(result, MCPImage)
+        img = PILImage.open(BytesIO(result.data))
+        assert img.size == (320, 288)
+
+    def test_invalid_scale(self, session_with_rom):
+        mcp = _make_mcp(session_with_rom)
+        result = _get_tool(mcp, "gb_screenshot")(scale=0)
+        assert result["error"] == "INVALID_PARAMETER"

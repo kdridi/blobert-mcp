@@ -29,6 +29,9 @@ Format: **Context** (why we faced a choice), **Decision** (what we chose),
 | D-014 | 2026-03-29 | Pre-commit hooks mandatory | BLO-018 |
 | D-015 | 2026-03-29 | Single-file decision log | BLO-019 |
 | D-016 | 2026-03-29 | Datetime format for tickets | BLO-004 |
+| D-017 | 2026-03-29 | Instruction stepping via hook + timeout | BLO-022 |
+| D-018 | 2026-03-29 | Screenshot returns FastMCP Image | BLO-022 |
+| D-019 | 2026-03-29 | Hook API — keep existing 3-arg form | BLO-022 |
 
 ---
 
@@ -291,3 +294,61 @@ the same day. The AI creates tickets rapidly — sometimes several
 per session — and the date-only format loses sequencing
 information. Not backfilling existing tickets avoids fabricating
 data we don't have.
+
+---
+
+### D-017: Instruction stepping via hook at PC+size with frame timeout
+**Date:** 2026-03-29 | **Ticket:** BLO-022
+
+**Context:** `gb_step(mode="instruction")` needs to advance
+exactly one CPU instruction. PyBoy's `tick()` runs a full frame
+(~70K cycles). Need a mechanism to stop after one instruction.
+
+**Decision:** Decode instruction at PC to get `size`, register a
+hook at `(PC + size) & 0xFFFF`, tick until hook fires or 10-frame
+timeout. Deregister hook after each step to prevent stale hooks
+from blocking subsequent steps.
+
+**Why:** Hook-based stepping reuses the same pattern as
+`gb_run_until`. The 10-frame timeout handles jumps/calls where
+PC+size is never reached (the instruction executed, but PC jumped
+elsewhere). After timeout, return current state normally — not an
+error. Rejected: detecting jump targets to hook at the destination
+(adds complexity, fragile for indirect jumps like `JP HL`).
+
+---
+
+### D-018: Screenshot returns FastMCP Image object
+**Date:** 2026-03-29 | **Ticket:** BLO-022
+
+**Context:** `gb_screenshot` must return image data via MCP's
+multimodal content type. Options: return a raw dict with
+`{"type": "image", ...}`, or use FastMCP's `Image` helper class.
+
+**Decision:** Return `Image(data=bytes, format=str)` from
+`mcp.server.fastmcp.utilities.types`. FastMCP's
+`_convert_to_content()` auto-converts it to `ImageContent`.
+
+**Why:** Cleaner than manual base64 encoding + dict construction.
+The `Image` class handles MIME type derivation and base64 encoding
+internally. Note: the return type annotation is omitted (not
+`-> dict | Image`) because Pydantic cannot generate a schema for
+the `Image` class, causing registration to fail.
+
+---
+
+### D-019: Hook API — keep existing 3-arg form
+**Date:** 2026-03-29 | **Ticket:** BLO-022
+
+**Context:** Real PyBoy uses `hook_register(bank, addr, callback,
+context)` (4 args). The existing codebase uses
+`hook_register(addr, callback, context)` (3 args). Fixing this
+would require updating `gb_run_until` and all test fakes.
+
+**Decision:** Keep the 3-arg form for now. Both instruction
+stepping and `gb_run_until` use the same convention.
+
+**Why:** Scope discipline — BLO-022 is about instruction stepping
+and screenshot, not hook API fixes. A follow-up ticket can align
+the hook API with real PyBoy if needed when testing against real
+hardware.
