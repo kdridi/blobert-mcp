@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from blobert_mcp.domain import bank_info, interrupts
+from blobert_mcp.domain import memory as memory_domain
 from blobert_mcp.utils.hexdump import hexdump
 
 
@@ -113,3 +114,31 @@ def register_memory_tools(mcp, session) -> None:
         ie_byte = session.pyboy.memory[0xFFFF]
         if_byte = session.pyboy.memory[0xFF0F]
         return interrupts.parse_interrupt_flags(ie_byte, if_byte)
+
+    @mcp.tool()
+    def gb_write_memory(address: int, data: str) -> dict:
+        """Write bytes to a writable memory region (RAM, HRAM, VRAM, OAM).
+
+        Data is a hex string (e.g., "FF0042"). Address must be in a writable
+        range. Returns confirmation with address and byte count written.
+        """
+        if not session.rom_loaded:
+            return {
+                "error": "NO_ROM_LOADED",
+                "message": "Load a ROM first with gb_load_rom.",
+            }
+        try:
+            raw = memory_domain.parse_hex_string(data)
+        except ValueError as exc:
+            return {"error": "INVALID_DATA", "message": str(exc)}
+        try:
+            memory_domain.validate_write_address(address, len(raw))
+        except ValueError as exc:
+            return {"error": "INVALID_ADDRESS", "message": str(exc)}
+        for i, byte in enumerate(raw):
+            session.pyboy.memory[address + i] = byte
+        return {
+            "status": "ok",
+            "address": f"0x{address:04X}",
+            "bytes_written": len(raw),
+        }
