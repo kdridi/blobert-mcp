@@ -289,7 +289,7 @@ class TestDetectFormat:
 
     def test_ambiguous_defaults_sym(self):
         # Only one dotted label out of many — not enough to trigger pokered
-        content = "00:0100 main\n00:0150 init\n00:0200 VBlank.done\n"
+        content = "00:0100 main\n00:0150 init\n00:0200 loop\n00:0250 VBlank.done\n"
         assert detect_format(content) == "sym"
 
     def test_majority_dotted_labels(self):
