@@ -3,7 +3,12 @@
     "Stop": [
       {
         "matcher": "",
-        "command": ".claude/hooks/verify-ticket-completion.sh"
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/verify-ticket-completion.sh"
+          }
+        ]
       }
     ]
   }
